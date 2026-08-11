@@ -68,6 +68,18 @@
     color: transparent;
     text-shadow: 0 2px 24px rgba(201,162,39,0.25);
   }
+  h1 .beta-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 0.32em;
+    font-weight:600;
+    letter-spacing: 0.08em;
+    -webkit-background-clip: initial;
+    background-clip: initial;
+    background: none;
+    color: var(--parchment-dim);
+    text-shadow: none;
+    vertical-align: middle;
+  }
   header p.tagline{
     color: var(--parchment-dim);
     font-size: 15px;
@@ -111,7 +123,7 @@
   }
   input::placeholder{ color: rgba(238,227,202,0.4); }
   input:focus, select:focus, button:focus{ outline: 2px solid var(--gold-light); outline-offset: 1px; }
-  #setSearch{ width: 230px; max-width: 45vw; }
+  #setSearch{ width: 270px; max-width: 45vw; }
   #packCount{ width: 80px; }
 
   button{
@@ -177,7 +189,13 @@
   }
   .collector-btn.primary:hover:not(:disabled){ background: var(--fixed-gold-light); }
 
-  #status{ min-height: 20px; font-family:'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--gold-light); margin: 4px 4px 0; }
+  #status{ min-height: 20px; font-family:'IBM Plex Mono', monospace; font-size: 15px; color: var(--gold-light); margin: 4px 4px 0; display:flex; align-items:center; gap:2px; }
+  .loading-spinner{
+    display:inline-block; width:15px; height:15px; margin-right:8px; flex-shrink:0;
+    border:2px solid rgba(201,162,39,0.25); border-top-color: var(--gold-light);
+    border-radius:50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
   #status.err{ color: #ff8b6b; }
 
   /* pack (signature element) */
@@ -258,6 +276,12 @@
 
   .reveal-title{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color: var(--parchment-dim); margin: 0 4px 12px; }
   .tab-desc{ font-size:13px; color: var(--parchment-dim); margin: 0 4px 16px; line-height:1.5; max-width: 720px; }
+  .empty-callout{
+    font-size:17px; font-weight:600; color: var(--parchment); line-height:1.5;
+    padding: 22px 20px; margin: 8px 0 16px;
+    background: rgba(201,162,39,0.07); border: 1px dashed rgba(201,162,39,0.35); border-radius: 10px;
+    text-align:center;
+  }
   .card-grid{
     display:grid;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -284,7 +308,7 @@
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    animation: mythicBorderShift 3.2s linear infinite;
+    animation: mythicBorderShift 6.4s ease-in-out infinite alternate;
     pointer-events:none;
     z-index:2;
   }
@@ -550,14 +574,14 @@
 <div class="wrap">
   <header>
     <div class="eyebrow">Sealed Format</div>
-    <h1>MTG Pack Simulator</h1>
+    <h1>MTG Pack Simulator <span class="beta-tag">(BETA)</span></h1>
     <p class="credit-line">vibe coded by Terrabot</p>
-    <p class="tagline">Pick any Magic set <a href="https://mtgjson.com" target="_blank" rel="noopener">MTGJSON</a> has data for, tear into boosters built from its real print sheets, and watch your sealed pool take shape.</p>
+    <p class="tagline">Pick any Magic set <a href="https://mtgjson.com" target="_blank" rel="noopener">MTGJSON</a> has data for, tear into boosters built from its real print sheets, watch your sealed pool take shape, and build a deck straight out of what you pull.</p>
   </header>
 
   <div class="panel">
     <div class="controls">
-      <div class="set-select-group">
+      <div class="set-select-group" style="position:relative;">
         <button id="setInfoBtn" class="icon-btn" disabled title="Show Set Info">
           <img id="setInfoIcon" style="display:none;" alt="">
           <span id="setInfoFallback">ⓘ</span>
@@ -567,6 +591,7 @@
           <input id="setSearch" list="setDatalist" placeholder="Loading sets…" autocomplete="off" disabled>
           <datalist id="setDatalist"></datalist>
         </div>
+        <span class="field-hint" style="left:0;">Click the set icon for set info</span>
       </div>
       <div class="field">
         <label for="packCount">Packs in pool</label>
@@ -581,7 +606,7 @@
       </div>
     </div>
     <p class="settings-note" id="packCostNote" style="margin:26px 4px 0;"></p>
-    <div id="status">Loading set list from MTGJSON…</div>
+    <div id="status"><span class="loading-spinner"></span>Loading set list from MTGJSON…</div>
   </div>
 
   <div class="panel" id="setInfoPanel" style="display:none;">
@@ -606,10 +631,11 @@
     <div class="pool-header" style="margin-bottom:12px;">
       <p class="reveal-title" id="revealTitle" style="margin:0;">Just opened</p>
       <select id="revealSortSelect" class="sort-select">
+        <option value="pack-order" selected>Sort: Pack Order (Recent-Last)</option>
         <option value="name">Sort: Name</option>
         <option value="number-asc">Sort: Card # (Asc)</option>
         <option value="number-desc">Sort: Card # (Desc)</option>
-        <option value="price-desc" selected>Sort: Price (High–Low)</option>
+        <option value="price-desc">Sort: Price (High–Low)</option>
         <option value="price-asc">Sort: Price (Low–High)</option>
       </select>
       <select id="revealLandFilter" class="sort-select">
@@ -654,7 +680,7 @@
       <div id="poolByRarity"></div>
     </div>
 
-    <p class="info-sub" id="poolEmptyMsg">Your pool is empty — open some packs to start building it.</p>
+    <p class="empty-callout" id="poolEmptyMsg">Your pool is empty — open some packs to start building it.</p>
     <button id="backToOpenedBtn" class="ghost go-to-pool-btn" style="display:none;">← Back to Just Opened</button>
   </div>
 
@@ -682,19 +708,20 @@
         <option value="price-asc">Sort: Price (Low–High)</option>
       </select>
       <select id="setLandFilter" class="sort-select">
-        <option value="all">Lands: All Cards</option>
+        <option value="all">Lands: All</option>
         <option value="only">Lands: Only</option>
         <option value="hide">Lands: Hide</option>
       </select>
     </div>
     <div class="type-filter-row" id="setBrowserTypeFilters"></div>
-    <p class="info-sub" id="setBrowserLoading">Pick a set above to browse its full card list.</p>
+    <p class="info-sub" id="setBrowserLoading" style="font-size:15px;">Pick a set above to browse its full card list.</p>
     <div id="setBrowserByRarity"></div>
   </div>
 
   <div id="deckTabContent" class="tab-pane">
     <div class="panel" id="deckStatsPanel">
       <div class="pool-stats" id="deckStats"></div>
+      <p class="settings-note" id="deckStatusNote" style="margin:10px 0 0; display:none;"></p>
     </div>
     <p class="tab-desc">Build your sealed deck from cards in your pool — hover a card in Full Pool (or here, once it's added) and click + to add it, or add extra basic lands below.</p>
     <div class="pool-header">
@@ -718,7 +745,7 @@
       <input type="number" id="basicLandQty" min="1" max="20" value="1">
       <button id="basicLandAddBtn" class="ghost">Add to Deck</button>
     </div>
-    <p class="info-sub" id="deckEmptyMsg">Your deck is empty — hover a card in Full Pool and click the green + to add it, or add basic lands above.</p>
+    <p class="empty-callout" id="deckEmptyMsg">Your deck is empty — hover a card in Full Pool and click the green + to add it, or add basic lands above.</p>
     <div id="deckByRarity"></div>
   </div>
 
@@ -757,7 +784,7 @@
         </div>
       </div>
       <label class="setting-toggle"><input type="checkbox" id="animationsToggle"><span>Animations</span></label>
-      <label class="setting-toggle"><input type="checkbox" id="showPackArtToggle"><span>Show real set art on packs</span></label>
+      <label class="setting-toggle"><input type="checkbox" id="showPackArtToggle"><span>Display set icon on packs</span></label>
 
       <h3 class="settings-category">Gameplay</h3>
       <label class="setting-toggle"><input type="checkbox" id="instantRipToggle"><span>Instant rip — skip the pack animation entirely</span></label>
@@ -767,6 +794,7 @@
         <label for="deckSizeInput">Deck size</label>
         <input type="number" id="deckSizeInput" min="1" max="250" value="40" style="width:70px;">
       </div>
+      <p class="settings-note" style="font-style:italic;">40 Cards for Sealed/Draft, 60 Cards for Standard/Modern etc., 100 Cards for Commander.</p>
 
       <h3 class="settings-category">Sound</h3>
       <div class="setting-row">
@@ -793,7 +821,7 @@
         </div>
       </div>
       <div class="setting-row">
-        <label for="valueSoundSelect">High-value reveal sound (&gt;$35)</label>
+        <label for="valueSoundSelect">High-value reveal sound</label>
         <div style="display:flex; gap:8px; align-items:center;">
           <select id="valueSoundSelect">
             <option value="coin">Coin Drop</option>
@@ -803,6 +831,16 @@
           <button type="button" id="valueSoundPreviewBtn" class="ghost" style="padding:6px 10px; font-size:12px;">▶ Preview</button>
         </div>
       </div>
+      <label class="setting-toggle"><input type="checkbox" id="highValueThresholdEnabledToggle"><span>Enable high-value reveal trigger</span></label>
+      <div class="setting-row">
+        <label for="highValueThresholdInput">Trigger threshold</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span id="highValueThresholdSymbol" style="color:var(--parchment-dim); font-family:'IBM Plex Mono', monospace; font-size:13px;">$</span>
+          <input type="number" id="highValueThresholdInput" min="0" step="0.01" style="width:90px;">
+          <span id="highValueThresholdCurrencyLabel" style="color:var(--parchment-dim); font-family:'IBM Plex Mono', monospace; font-size:12px;">USD</span>
+        </div>
+      </div>
+      <p class="settings-note">Cards priced above this trigger the shake + reveal sound. Shown in your selected currency below; defaults to $35 USD.</p>
       <label class="setting-toggle"><input type="checkbox" id="muteToggle"><span>Mute sounds</span></label>
       <div class="setting-row">
         <label for="volumeSlider">Sound volume</label>
@@ -816,9 +854,17 @@
           <option value="AUD">AUD</option>
           <option value="USD">USD</option>
           <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+          <option value="CAD">CAD</option>
+          <option value="JPY">JPY</option>
+          <option value="CNY">CNY</option>
+          <option value="INR">INR</option>
+          <option value="NZD">NZD</option>
+          <option value="CHF">CHF</option>
+          <option value="SGD">SGD</option>
         </select>
       </div>
-      <p class="settings-note">Sets the currency used for the pool's total value. The card detail window always shows USD and AUD.</p>
+      <p class="settings-note">Sets the currency used for the pool's total value. The card detail window always shows USD, plus whichever currency is selected here.</p>
       <label class="setting-toggle"><input type="checkbox" id="showLegalityToggle"><span>Show format legality on cards</span></label>
     </div>
   </div>
@@ -851,7 +897,7 @@ const state = {
   setTypeFilters: new Set(),
   poolSort: 'price-desc',
   setSort: 'price-desc',
-  revealSort: 'price-desc',
+  revealSort: 'pack-order',
   poolLandFilter: 'all',
   setLandFilter: 'all',
   revealLandFilter: 'all',
@@ -862,8 +908,9 @@ const state = {
   deckSearchTerm: '',
   lastRevealCards: [],
   scryfallCache: {},
-  fxRate: null,
+  fxRates: null, // full { CODE: rate } table fetched once, base USD
   poolValue: null,
+  poolValueCurrency: 'USD',
   activeTab: 'opened',
   hasRevealed: false,
   modalNav: null,
@@ -880,6 +927,8 @@ const state = {
     sound: 'tear',
     mythicSound: 'heaven',
     valueSound: 'coin',
+    highValueThresholdUSD: 35,
+    highValueThresholdEnabled: true,
     showLegality: true,
     volume: 0.7
   }
@@ -941,6 +990,7 @@ const els = {
   tabDeckBtn: document.getElementById('tabDeckBtn'),
   deckTabContent: document.getElementById('deckTabContent'),
   deckStats: document.getElementById('deckStats'),
+  deckStatusNote: document.getElementById('deckStatusNote'),
   deckSortSelect: document.getElementById('deckSortSelect'),
   addBasicLandBtn: document.getElementById('addBasicLandBtn'),
   exportDeckBtn: document.getElementById('exportDeckBtn'),
@@ -1010,6 +1060,10 @@ const els = {
   mythicSoundSelect: document.getElementById('mythicSoundSelect'),
   mythicSoundPreviewBtn: document.getElementById('mythicSoundPreviewBtn'),
   valueSoundSelect: document.getElementById('valueSoundSelect'),
+  highValueThresholdInput: document.getElementById('highValueThresholdInput'),
+  highValueThresholdEnabledToggle: document.getElementById('highValueThresholdEnabledToggle'),
+  highValueThresholdSymbol: document.getElementById('highValueThresholdSymbol'),
+  highValueThresholdCurrencyLabel: document.getElementById('highValueThresholdCurrencyLabel'),
   valueSoundPreviewBtn: document.getElementById('valueSoundPreviewBtn'),
   muteToggle: document.getElementById('muteToggle'),
   volumeSlider: document.getElementById('volumeSlider'),
@@ -1020,9 +1074,19 @@ const els = {
   themeBtnSwatches: document.getElementById('themeBtnSwatches'),
 };
 
-function setStatus(msg, isErr){
-  els.status.textContent = msg;
+function setStatus(msg, isErr, loading){
+  els.status.innerHTML = (loading ? '<span class="loading-spinner"></span>' : '') + escapeHtml(msg);
   els.status.className = isErr ? 'err' : '';
+}
+
+function setDeckStatus(msg, isErr){
+  if(!msg){
+    els.deckStatusNote.style.display = 'none';
+    return;
+  }
+  els.deckStatusNote.textContent = msg;
+  els.deckStatusNote.style.color = isErr ? '#ff8b6b' : '';
+  els.deckStatusNote.style.display = 'block';
 }
 
 async function init(){
@@ -1109,7 +1173,7 @@ async function loadSet(code){
   els.setInfoBtn.classList.remove('active');
   els.setInfoPanel.style.display = 'none';
   els.collectorToggle.disabled = true;
-  setStatus(`Fetching ${code} card & booster data…`);
+  setStatus(`Fetching ${code} card & booster data…`, false, true);
   try{
     if(!state.cache[code]){
       const [res, iconRes] = await Promise.all([
@@ -1128,12 +1192,16 @@ async function loadSet(code){
           setIconUrl = iconJson.icon_svg_uri || null;
         }catch(e){ /* icon is optional, ignore failures */ }
       }
+      // Scryfall doesn't always have an icon for a brand-new set yet — fall back to
+      // Keyrune's community-maintained icon set, which tends to add new sets faster.
+      const keyruneCode = data.keyruneCode || null;
       state.cache[code] = {
         cardsByUuid,
         rawCards: data.cards,
         boosterObjRaw: data.booster || null,
         boosterCfg: pickBoosterConfig(data.booster),
         setIconUrl,
+        keyruneCode,
         sisterCards: []
       };
       state.cache[code].sisterCards = await findAndLoadSisterSets(code);
@@ -1147,17 +1215,22 @@ async function loadSet(code){
     els.collectorToggle.classList.remove('collector-glisten');
     els.collectorToggle.textContent = state.collectorAvailable ? 'Collector Booster: Off' : 'Collector Booster: N/A';
     const hasBooster = !!entry.boosterCfg;
-    const sisterNote = entry.sisterCards.length ? ` Linked sister-set cards detected — toggle Collector Booster on to include a bonus pull from it.` : '';
+    const sisterNote = entry.sisterCards.length ? ` Linked sister-set cards detected.` : '';
     setStatus(hasBooster
       ? `Loaded ${code}. Booster sheets found — ready to rip packs.${sisterNote}`
       : `Loaded ${code}. No official booster sheets in MTGJSON for this set — using an approximate rarity-based slot structure instead.${sisterNote}`);
     els.openOne.disabled = false;
     els.openPool.disabled = false;
     els.setInfoBtn.disabled = false;
-    if(entry.setIconUrl){
-      els.setInfoIcon.src = entry.setIconUrl;
+    const iconSrc = resolveSetIconUrl(entry);
+    if(iconSrc){
+      els.setInfoIcon.src = iconSrc;
       els.setInfoIcon.style.display = 'block';
       els.setInfoFallback.style.display = 'none';
+      els.setInfoIcon.onerror = () => {
+        els.setInfoIcon.style.display = 'none';
+        els.setInfoFallback.style.display = 'block';
+      };
     }else{
       els.setInfoIcon.style.display = 'none';
       els.setInfoFallback.style.display = 'block';
@@ -1176,6 +1249,11 @@ async function loadSet(code){
     console.error(err);
     setStatus(`Couldn't load ${code}: ${err.message}. This set may not have a data file, or the request was blocked.`, true);
   }
+}
+
+function resolveSetIconUrl(entry){
+  if(!entry) return null;
+  return entry.setIconUrl || (entry.keyruneCode ? `https://cdn.jsdelivr.net/npm/keyrune@latest/svg/${entry.keyruneCode.toLowerCase()}.svg` : null);
 }
 
 function pickBoosterConfig(boosterObj){
@@ -1293,6 +1371,25 @@ async function findAndLoadSisterSets(code){
   return sisterCards;
 }
 
+// When a sheet's whole card pool fails to resolve against our card data (some sets
+// have data quirks beyond just tokens — MSH's Collector Booster is one observed case),
+// falling back to an empty sheet would silently drop that many slots from the pack.
+// Instead, approximate that slot from the set's own cards using the sheet's name as a
+// rarity hint, so the pack still totals what it's supposed to.
+function fallbackPoolForSheet(rawCards, sheetName){
+  const s = (sheetName || '').toLowerCase();
+  let rarity = null;
+  if(s.includes('mythic')) rarity = 'mythic';
+  else if(s.includes('rare')) rarity = 'rare';
+  else if(s.includes('uncommon')) rarity = 'uncommon';
+  else if(s.includes('common')) rarity = 'common';
+  if(rarity){
+    const pool = rawCards.filter(c => c.rarity === rarity);
+    if(pool.length) return pool;
+  }
+  return rawCards.filter(c => c.rarity);
+}
+
 function generateBooster(code){
   const entry = state.cache[code];
   const cfg = getActiveBoosterCfg(code);
@@ -1304,12 +1401,29 @@ function generateBooster(code){
       if(!state.settings.includeLands && /land/i.test(sheetName)) continue;
       const sheet = cfg.sheets[sheetName];
       if(!sheet) continue;
+      // Some sheets include token UUIDs (MTGJSON's separate `tokens` array) alongside
+      // real cards. Rather than let a slot dead-end (or silently count a token toward
+      // the total), exclude token UUIDs from the pool entirely before picking — every
+      // slot always resolves to a real card, so the pack total exactly matches
+      // MTGJSON's own per-set slot count instead of drifting below it.
+      const realEntries = Object.entries(sheet.cards).filter(([uuid]) => !!entry.cardsByUuid[uuid]);
       const used = isNoDupeSheet(sheetName) ? new Set() : null;
-      for(let i=0;i<count;i++){
-        const uuid = weightedPick(sheet.cards, sheet.totalWeight, used);
-        if(used) used.add(uuid);
-        const card = entry.cardsByUuid[uuid];
-        if(card) out.push(toPulledCard(card, sheet.foil, sheetName, code, state.useCollector));
+      if(realEntries.length > 0){
+        const realCards = Object.fromEntries(realEntries);
+        const realTotalW = realEntries.reduce((s, [,w]) => s + w, 0);
+        for(let i=0;i<count;i++){
+          const uuid = weightedPick(realCards, realTotalW, used);
+          if(used) used.add(uuid);
+          const card = entry.cardsByUuid[uuid];
+          if(card) out.push(toPulledCard(card, sheet.foil, sheetName, code, state.useCollector));
+        }
+      }else{
+        const fallbackPool = fallbackPoolForSheet(entry.rawCards, sheetName);
+        for(let i=0;i<count;i++){
+          if(fallbackPool.length === 0) break;
+          const card = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+          out.push(toPulledCard(card, sheet.foil, sheetName, code, state.useCollector));
+        }
       }
     }
   }else{
@@ -1321,9 +1435,13 @@ function generateBooster(code){
   // Companion "eternal"/bonus sets are typically a Collector Booster-exclusive mechanic
   // in real Magic products (per the Hobbit/Hobbit Eternal example), so only pull from
   // the sister set's pool when Collector Booster mode is on, not in ordinary packs.
-  if(state.useCollector && entry.sisterCards && entry.sisterCards.length){
+  // This REPLACES a random slot rather than adding an extra card, so the pack's total
+  // count stays exactly what MTGJSON's own booster data says it should be for this set
+  // (e.g. 15 for Hobbit Collector Boosters) instead of inflating it.
+  if(state.useCollector && entry.sisterCards && entry.sisterCards.length && out.length > 0){
     const pick = entry.sisterCards[Math.floor(Math.random() * entry.sisterCards.length)];
-    out.push(toPulledCard(pick.card, false, 'sister', pick.setCode, state.useCollector));
+    const replaceIdx = Math.floor(Math.random() * out.length);
+    out[replaceIdx] = toPulledCard(pick.card, false, 'sister', pick.setCode, state.useCollector);
   }
   return out;
 }
@@ -1449,39 +1567,49 @@ function computeSetInfo(code){
   const rarityTotals = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0 };
   let expectedCards = 0;
   let foilSlots = 0;
-  let surgeFoilChance = 0; // probability a pack contains at least one Surge Foil slot
+  let surgeFoilChance = 0; // whether the chosen layout includes a Surge Foil slot
   let variantCount = 1;
 
   if(cfg){
-    const variants = cfg.boosters;
-    const totalW = cfg.boostersTotalWeight || variants.reduce((s,v)=>s+v.weight,0);
-    variantCount = variants.length;
-
-    for(const variant of variants){
-      const p = variant.weight / totalW; // probability this variant is chosen
-      let variantCardCount = 0;
-      for(const [sheetName, count] of Object.entries(variant.contents)){
-        if(!state.settings.includeLands && /land/i.test(sheetName)) continue;
-        variantCardCount += count;
-        const sheet = cfg.sheets[sheetName];
-        if(!sheet) continue;
-        if(sheet.foil) foilSlots += count * p;
-        if(sheet.foil && /surge/i.test(sheetName)) surgeFoilChance += count * p;
-        const sheetTotalW = sheet.totalWeight || Object.values(sheet.cards).reduce((a,b)=>a+b,0);
-        // rarity distribution within this sheet, by weight
-        const sheetRarityW = {};
-        for(const [uuid, w] of Object.entries(sheet.cards)){
-          const card = entry.cardsByUuid[uuid];
-          const r = (card && rarityTotals[card.rarity] !== undefined) ? card.rarity : 'other';
-          sheetRarityW[r] = (sheetRarityW[r] || 0) + w;
-        }
-        for(const [r, w] of Object.entries(sheetRarityW)){
-          const share = sheetTotalW ? (w / sheetTotalW) : 0;
-          rarityTotals[r] += count * share * p;
+    variantCount = cfg.boosters.length;
+    // Rather than blending every possible pack layout into one averaged statistic,
+    // randomly pick ONE layout (weighted the same way real pack generation does) and
+    // show exactly what that single layout contains — closer to what one actual pack
+    // looks like. Re-opening Set Info re-rolls this.
+    const variant = pickBoosterVariant(cfg);
+    let variantCardCount = 0;
+    for(const [sheetName, count] of Object.entries(variant.contents)){
+      if(!state.settings.includeLands && /land/i.test(sheetName)) continue;
+      variantCardCount += count;
+      const sheet = cfg.sheets[sheetName];
+      if(!sheet) continue;
+      if(sheet.foil) foilSlots += count;
+      if(sheet.foil && /surge/i.test(sheetName)) surgeFoilChance += count;
+      // Token UUIDs are excluded from the weighted pool entirely (matching actual pack
+      // generation) so this count and rarity breakdown reflect real cards only.
+      const realEntries = Object.entries(sheet.cards).filter(([uuid]) => !!entry.cardsByUuid[uuid]);
+      const sheetTotalW = realEntries.reduce((s, [,w]) => s + w, 0);
+      const sheetRarityW = {};
+      for(const [uuid, w] of realEntries){
+        const card = entry.cardsByUuid[uuid];
+        const r = (card && rarityTotals[card.rarity] !== undefined) ? card.rarity : 'other';
+        sheetRarityW[r] = (sheetRarityW[r] || 0) + w;
+      }
+      for(const [r, w] of Object.entries(sheetRarityW)){
+        const share = sheetTotalW ? (w / sheetTotalW) : 0;
+        rarityTotals[r] += count * share;
+      }
+      if(sheetTotalW === 0){
+        // Whole sheet failed to resolve — same fallback pool logic as actual pack
+        // generation, so the displayed odds don't undercount versus what you'll get.
+        const fallbackPool = fallbackPoolForSheet(entry.rawCards, sheetName);
+        for(const c of fallbackPool.length ? [fallbackPool[0]] : []){
+          const r = rarityTotals[c.rarity] !== undefined ? c.rarity : 'other';
+          rarityTotals[r] += count;
         }
       }
-      expectedCards += variantCardCount * p;
     }
+    expectedCards = variantCardCount;
   }else{
     // fallback structure, matches generateFallbackBooster
     expectedCards = 14;
@@ -1528,14 +1656,14 @@ function renderSetInfo(code){
     <p class="info-head">${escapeHtml(setMeta.name)} (${escapeHtml(code)})${state.useCollector ? ' — Collector Booster' : ''}</p>
     <div class="info-meta">${metaHtml}</div>
     <p class="info-sub">${info.hasRealData
-      ? `Computed from MTGJSON's actual print-sheet weights${info.variantCount > 1 ? ` across ${info.variantCount} possible pack layouts for this set` : ''}.`
+      ? `Computed from MTGJSON's actual print-sheet weights.${info.variantCount > 1 ? ` This set has ${info.variantCount} possible pack layouts — one was randomly picked (weighted by likelihood) to produce the numbers below; reopen Set Info to roll again.` : ''}`
       : `MTGJSON has no booster sheet data for this set — figures below are the app's generic fallback structure, not real print data.`}</p>
     <div class="info-grid">
       <div>
         <table class="rarity-table">
           <thead><tr><th>Rarity</th><th>Expected per pack</th></tr></thead>
           <tbody>${rows}</tbody>
-          <tfoot><tr><td style="font-weight:700;">Total</td><td style="font-weight:700;">${round(info.expectedCards)}</td></tr></tfoot>
+          <tfoot><tr><td style="font-weight:700;">Total Cards</td><td style="font-weight:700;">${round(info.expectedCards)} (Excluding Token)</td></tr></tfoot>
         </table>
       </div>
     </div>
@@ -1692,8 +1820,6 @@ function refreshDeckOverlaysForKey(cardKey){
 }
 
 
-const PRICE_SHAKE_THRESHOLD_USD = 35;
-
 function getCardPriceUsd(card){
   const sc = card.scryfallId && state.scryfallCache[card.scryfallId];
   if(!sc || !sc.prices) return 0;
@@ -1701,9 +1827,24 @@ function getCardPriceUsd(card){
   return usd ? parseFloat(usd) : 0;
 }
 
+const PACK_ORDER_RARITY = ['mythic', 'rare', 'uncommon', 'common'];
+
 function sortCards(arr, sortKey){
   const sorted = [...arr];
-  if(sortKey === 'number-asc' || sortKey === 'number-desc' || sortKey === 'number'){
+  if(sortKey === 'pack-order'){
+    // Groups by which pack each card came from (in the order packs were opened), and
+    // within each pack: mythic first (if any), then rare, uncommon, common.
+    sorted.sort((a,b) => {
+      const pa = a.__packIndex ?? 0, pb = b.__packIndex ?? 0;
+      if(pa !== pb) return pa - pb;
+      const ra = PACK_ORDER_RARITY.indexOf(a.rarity);
+      const rb = PACK_ORDER_RARITY.indexOf(b.rarity);
+      const ria = ra === -1 ? PACK_ORDER_RARITY.length : ra;
+      const rib = rb === -1 ? PACK_ORDER_RARITY.length : rb;
+      if(ria !== rib) return ria - rib;
+      return a.name.localeCompare(b.name);
+    });
+  }else if(sortKey === 'number-asc' || sortKey === 'number-desc' || sortKey === 'number'){
     const dir = sortKey === 'number-desc' ? -1 : 1;
     sorted.sort((a,b) => {
       const na = parseFloat(a.number), nb = parseFloat(b.number);
@@ -1723,14 +1864,11 @@ function sortCards(arr, sortKey){
 }
 
 function triggerCardReactions(el, card){
-  const sc = card.scryfallId && state.scryfallCache[card.scryfallId];
-  if(sc && sc.prices){
-    const priceUsd = card.foil ? (sc.prices.usd_foil || sc.prices.usd) : sc.prices.usd;
-    if(priceUsd && parseFloat(priceUsd) > PRICE_SHAKE_THRESHOLD_USD){
-      el.classList.add('reaction-shake');
-      playReactionSound('value');
-      setTimeout(() => el.classList.remove('reaction-shake'), 700);
-    }
+  const priceUsd = getCardPriceUsd(card);
+  if(state.settings.highValueThresholdEnabled && priceUsd > state.settings.highValueThresholdUSD){
+    el.classList.add('reaction-shake');
+    playReactionSound('value');
+    setTimeout(() => el.classList.remove('reaction-shake'), 700);
   }
   if(card.rarity === 'mythic'){
     el.classList.add('reaction-glisten');
@@ -1739,11 +1877,11 @@ function triggerCardReactions(el, card){
   }
 }
 
-function renderStackedGrid(container, cards, delayFn, reactions){
+function renderStackedGrid(container, cards, delayFn, reactions, groupByPack){
   container.innerHTML = '';
   const grouped = new Map();
   for(const c of cards){
-    const key = c.name + '|' + (c.foil ? 'foil' : 'normal');
+    const key = c.name + '|' + (c.foil ? 'foil' : 'normal') + (groupByPack ? '|p' + (c.__packIndex ?? 0) : '');
     if(!grouped.has(key)) grouped.set(key, { card: c, qty: 0 });
     grouped.get(key).qty++;
   }
@@ -1787,7 +1925,7 @@ function renderReveal(cards, label){
 function renderRevealGrid(withReactions){
   const filtered = state.lastRevealCards.filter(c => matchesLandFilter(c, state.revealLandFilter));
   const sorted = sortCards(filtered, state.revealSort);
-  renderStackedGrid(els.revealGrid, sorted, withReactions ? (i => i * 0.03) : null, !!withReactions);
+  renderStackedGrid(els.revealGrid, sorted, withReactions ? (i => i * 0.03) : null, !!withReactions, state.revealSort === 'pack-order');
 }
 
 async function renderRevealStats(cards){
@@ -1810,25 +1948,10 @@ async function renderRevealStats(cards){
   };
   renderStats('…');
 
-  if(state.settings.currency === 'AUD') await ensureFxRate();
-  let total = 0;
-  for(const c of cards){
-    if(!c.scryfallId) continue;
-    const sc = state.scryfallCache[c.scryfallId];
-    if(!sc || !sc.prices) continue;
-    const p = sc.prices;
-    let val = null;
-    if(state.settings.currency === 'EUR'){
-      val = c.foil ? (p.eur_foil || p.eur) : p.eur;
-    }else if(state.settings.currency === 'AUD'){
-      const usdVal = c.foil ? (p.usd_foil || p.usd) : p.usd;
-      if(usdVal && state.fxRate) val = parseFloat(usdVal) * state.fxRate;
-    }else{
-      val = c.foil ? (p.usd_foil || p.usd) : p.usd;
-    }
-    if(val) total += parseFloat(val);
-  }
-  renderStats(formatCurrency(total, state.settings.currency));
+  let totalUsd = 0;
+  for(const c of cards) totalUsd += getCardPriceUsd(c);
+  const converted = await convertUsd(totalUsd, state.settings.currency);
+  renderStats(formatCurrency(converted.value, converted.currency));
 }
 
 function setActiveTab(tab){
@@ -1884,7 +2007,7 @@ function renderPool(){
     <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
     <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
     <div class="stat"><div class="num">${counts.foil}</div><div class="label">Foil</div></div>
-    <div class="stat value"><div class="num" id="poolValueNum">${state.poolValue === null ? '…' : formatCurrency(state.poolValue, state.settings.currency)}</div><div class="label">Total value (approx.)</div></div>
+    <div class="stat value"><div class="num" id="poolValueNum">${state.poolValue === null ? '…' : formatCurrency(state.poolValue, state.poolValueCurrency)}</div><div class="label">Total value (approx.)</div></div>
   `;
 
   const term = state.poolSearchTerm.trim().toLowerCase();
@@ -1996,7 +2119,7 @@ async function mergeSisterSetsIntoBrowser(){
   const toAdd = state.setBrowserSisterCodes.filter(c => !state.setBrowserMergedCodes.includes(c));
   if(toAdd.length === 0) return;
   els.setBrowserAddSisterBtn.disabled = true;
-  setStatus(`Loading linked set(s): ${toAdd.join(', ')}…`);
+  setStatus(`Loading linked set(s): ${toAdd.join(', ')}…`, false, true);
 
   try{
     for(const sisterCode of toAdd){
@@ -2074,7 +2197,7 @@ async function loadSetBrowser(code){
   els.setBrowserHeader.style.display = 'none';
   els.setBrowserByRarity.innerHTML = '';
   els.setBrowserLoading.style.display = 'block';
-  els.setBrowserLoading.textContent = `Loading ${code}'s full card list…`;
+  els.setBrowserLoading.innerHTML = `<span class="loading-spinner"></span>Loading ${escapeHtml(code)}'s full card list…`;
 
   // The set being browsed here might never have been loaded for pack-opening (e.g. a
   // standalone companion set), so fetch it directly if it isn't already cached.
@@ -2127,7 +2250,7 @@ async function loadSetBrowser(code){
 
   await fetchMissingScryfallData(cards.filter(c => c.scryfallId).map(c => c.scryfallId));
   applyFoilDetectionToBrowseCards(cards);
-  if(state.settings.currency === 'AUD') await ensureFxRate();
+  if(state.settings.currency !== 'USD') await ensureFxRates();
 
   if(state.setBrowserCode !== code) return; // set changed again while we were loading
   renderSetBrowser(code);
@@ -2157,11 +2280,13 @@ function renderSetBrowser(code){
       const usd = sc.prices.usd || sc.prices.usd_foil;
       if(usd){
         let val = parseFloat(usd);
-        if(state.settings.currency === 'AUD' && state.fxRate) val *= state.fxRate;
+        const rate = getFxRate(state.settings.currency);
+        if(state.settings.currency !== 'USD' && rate) val *= rate;
         total += val;
       }
     }
   }
+  const displayCurrency = (state.settings.currency === 'USD' || getFxRate(state.settings.currency)) ? state.settings.currency : 'USD';
 
   els.setBrowserStats.innerHTML = `
     <div class="stat"><div class="num">${cards.length}</div><div class="label">Total cards</div></div>
@@ -2169,7 +2294,7 @@ function renderSetBrowser(code){
     <div class="stat uncommon"><div class="num">${counts.uncommon}</div><div class="label">Uncommon</div></div>
     <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
     <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
-    <div class="stat value"><div class="num">${formatCurrency(total, state.settings.currency)}</div><div class="label">Set value (approx.)</div></div>
+    <div class="stat value"><div class="num">${formatCurrency(total, displayCurrency)}</div><div class="label">Set value (approx.)</div></div>
   `;
 
   const term = state.setSearchTerm.trim().toLowerCase();
@@ -2251,7 +2376,7 @@ function isBasicLandCard(card){
 
 function deckAddOne(card){
   if(state.deck.length >= state.settings.deckSize){
-    setStatus(`Deck is already full (${state.settings.deckSize}/${state.settings.deckSize}).`, true);
+    setDeckStatus(`Deck is already full (${state.settings.deckSize}/${state.settings.deckSize}).`, true);
     return;
   }
   const before = deckQtyFor(card);
@@ -2261,7 +2386,7 @@ function deckAddOne(card){
   if(!isBasicLandCard(card)){
     const owned = poolQtyFor(card);
     if(before >= owned){
-      setStatus(`You've only opened ${owned} cop${owned === 1 ? 'y' : 'ies'} of ${card.name} — can't add more than you own.`, true);
+      setDeckStatus(`You've only opened ${owned} cop${owned === 1 ? 'y' : 'ies'} of ${card.name} — can't add more than you own.`, true);
       return;
     }
   }
@@ -2307,14 +2432,17 @@ function updateDeckStatsOnly(){
     if(c.foil) counts.foil++;
     value += getCardPriceUsd(c);
   }
-  const displayValue = state.settings.currency === 'AUD' && state.fxRate ? value * state.fxRate : value;
+  const rate = getFxRate(state.settings.currency);
+  const displayCurrency = (state.settings.currency === 'USD' || rate) ? state.settings.currency : 'USD';
+  const displayValue = (displayCurrency !== 'USD' && rate) ? value * rate : value;
+  if(state.settings.currency !== 'USD' && !rate) ensureFxRates().then(() => updateDeckStatsOnly()); // fetch once, then refresh
   els.deckStats.innerHTML = `
     <div class="stat"><div class="num">${total} / ${limit}</div><div class="label">Deck size</div></div>
     <div class="stat common"><div class="num">${counts.common}</div><div class="label">Common</div></div>
     <div class="stat uncommon"><div class="num">${counts.uncommon}</div><div class="label">Uncommon</div></div>
     <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
     <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
-    <div class="stat value"><div class="num">${formatCurrency(displayValue, state.settings.currency)}</div><div class="label">Deck value (approx.)</div></div>
+    <div class="stat value"><div class="num">${formatCurrency(displayValue, displayCurrency)}</div><div class="label">Deck value (approx.)</div></div>
   `;
   els.deckEmptyMsg.style.display = total > 0 ? 'none' : 'block';
 }
@@ -2324,7 +2452,7 @@ function clearDeck(){
   if(!confirm(`Clear your entire deck (${state.deck.length} card${state.deck.length === 1 ? '' : 's'})? This can't be undone.`)) return;
   state.deck = [];
   fullRefreshAfterBulkDeckChange();
-  setStatus('Deck cleared.');
+  setDeckStatus('Deck cleared.');
 }
 
 function renderDeckTab(){
@@ -2522,7 +2650,7 @@ function populateBasicLandSelect(){
 // in the deck, hovering its tile in Deck Builder lets you keep adding more with +.
 function addOneBasicLand(cardObj){
   if(state.deck.length >= state.settings.deckSize){
-    setStatus(`Deck is already full (${state.settings.deckSize}/${state.settings.deckSize}).`, true);
+    setDeckStatus(`Deck is already full (${state.settings.deckSize}/${state.settings.deckSize}).`, true);
     return;
   }
   const pulled = toPulledCard(cardObj, false, 'basic', state.currentCode);
@@ -2546,7 +2674,7 @@ function addBasicLandsToDeck(){
     added++;
   }
   if(added < qty){
-    setStatus(`Added ${added} of ${qty} ${name} — deck is full at ${state.settings.deckSize}.`, added === 0);
+    setDeckStatus(`Added ${added} of ${qty} ${name} — deck is full at ${state.settings.deckSize}.`, added === 0);
   }
   fullRefreshAfterBulkDeckChange();
 }
@@ -2585,7 +2713,7 @@ function exportPool(){
 }
 
 function formatCurrency(value, currency){
-  const symbol = currency === 'EUR' ? '€' : '$';
+  const symbol = CURRENCY_SYMBOLS[currency] || '$';
   return `${symbol}${value.toFixed(2)} ${currency}`;
 }
 
@@ -2620,33 +2748,18 @@ async function refreshPoolValue(){
 
   await fetchMissingScryfallData(state.pool.filter(c => c.scryfallId).map(c => c.scryfallId));
 
-  if(state.settings.currency === 'AUD') await ensureFxRate();
-
-  let total = 0;
-  for(const c of state.pool){
-    if(!c.scryfallId) continue;
-    const sc = state.scryfallCache[c.scryfallId];
-    if(!sc || !sc.prices) continue;
-    const p = sc.prices;
-    let val = null;
-    if(state.settings.currency === 'EUR'){
-      val = c.foil ? (p.eur_foil || p.eur) : p.eur;
-    }else if(state.settings.currency === 'AUD'){
-      const usdVal = c.foil ? (p.usd_foil || p.usd) : p.usd;
-      if(usdVal && state.fxRate) val = parseFloat(usdVal) * state.fxRate;
-    }else{
-      val = c.foil ? (p.usd_foil || p.usd) : p.usd;
-    }
-    if(val) total += parseFloat(val);
-  }
-  state.poolValue = total;
+  let totalUsd = 0;
+  for(const c of state.pool) totalUsd += getCardPriceUsd(c);
+  const converted = await convertUsd(totalUsd, state.settings.currency);
+  state.poolValue = converted.value;
+  state.poolValueCurrency = converted.currency;
   renderPoolValueStat();
 }
 
 function renderPoolValueStat(){
   const el = document.getElementById('poolValueNum');
   if(!el) return;
-  el.textContent = state.poolValue === null ? '…' : formatCurrency(state.poolValue, state.settings.currency);
+  el.textContent = state.poolValue === null ? '…' : formatCurrency(state.poolValue, state.poolValueCurrency);
 }
 
 function rarityRank(r){
@@ -2910,7 +3023,7 @@ function playPackAnimation(){
     }
     const info = state.sets.find(s => s.code === state.currentCode) || { code: state.currentCode, name: '' };
     const entry = state.cache[state.currentCode];
-    const iconUrl = entry && entry.setIconUrl;
+    const iconUrl = resolveSetIconUrl(entry);
     const useArt = state.settings.showPackArt && iconUrl;
 
     const pack = document.createElement('div');
@@ -2947,6 +3060,7 @@ async function openOne(){
   toggleButtons(true);
   await playPackAnimation();
   const cards = generateBooster(state.currentCode);
+  for(const c of cards) c.__packIndex = 0;
   state.pool.push(...cards);
   await fetchMissingScryfallData(cards.filter(c => c.scryfallId).map(c => c.scryfallId));
   renderReveal(cards, `Just opened — ${state.currentCode}`);
@@ -2980,7 +3094,7 @@ function openPacksBatch(n){
   return new Promise(resolve => {
     const info = state.sets.find(s => s.code === state.currentCode) || { code: state.currentCode, name: '' };
     const entry = state.cache[state.currentCode];
-    const iconUrl = entry && entry.setIconUrl;
+    const iconUrl = resolveSetIconUrl(entry);
     const useArt = state.settings.showPackArt && iconUrl;
 
     els.packStage.innerHTML = '';
@@ -3012,6 +3126,7 @@ function openPacksBatch(n){
         pack.classList.add('tearing');
         pack.style.pointerEvents = 'none';
         const cards = generateBooster(state.currentCode);
+        for(const c of cards) c.__packIndex = i;
         state.pool.push(...cards);
         collected.push(...cards);
         setTimeout(() => {
@@ -3042,6 +3157,7 @@ async function openPool(){
     setStatus(`Opening ${n} packs from ${setLabel}…`);
     for(let i=0;i<n;i++){
       const cards = generateBooster(state.currentCode);
+      for(const c of cards) c.__packIndex = i;
       all = all.concat(cards);
       state.pool.push(...cards);
     }
@@ -3238,7 +3354,7 @@ function renderThemePicker(){
   els.themeBtnSwatches.innerHTML = current.colors.slice(0,3).map(c => `<span style="background:${c}"></span>`).join('');
 }
 
-function openSettingsModal(){
+async function openSettingsModal(){
   els.currencySelect.value = state.settings.currency;
   els.showPackArtToggle.checked = state.settings.showPackArt;
   els.instantRipToggle.checked = state.settings.instantRip;
@@ -3252,6 +3368,9 @@ function openSettingsModal(){
   els.muteToggle.checked = state.settings.muted;
   els.volumeSlider.value = Math.round(state.settings.volume * 100);
   els.showLegalityToggle.checked = state.settings.showLegality;
+  els.highValueThresholdEnabledToggle.checked = state.settings.highValueThresholdEnabled;
+  els.highValueThresholdInput.disabled = !state.settings.highValueThresholdEnabled;
+  syncThresholdInputDisplay();
   renderThemePicker();
   els.settingsModal.classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -3288,7 +3407,29 @@ els.currencySelect.addEventListener('change', () => {
   if(state.pool.length) refreshPoolValue();
   else renderPoolValueStat();
   updatePackCostNote();
+  syncThresholdInputDisplay();
 });
+els.highValueThresholdInput.addEventListener('change', async () => {
+  const entered = Math.max(0, parseFloat(els.highValueThresholdInput.value) || 0);
+  if(state.settings.currency === 'USD'){
+    state.settings.highValueThresholdUSD = entered;
+  }else{
+    await ensureFxRates();
+    const rate = getFxRate(state.settings.currency);
+    state.settings.highValueThresholdUSD = rate ? entered / rate : entered;
+  }
+  syncThresholdInputDisplay();
+});
+els.highValueThresholdEnabledToggle.addEventListener('change', () => {
+  state.settings.highValueThresholdEnabled = els.highValueThresholdEnabledToggle.checked;
+  els.highValueThresholdInput.disabled = !state.settings.highValueThresholdEnabled;
+});
+async function syncThresholdInputDisplay(){
+  const converted = await convertUsd(state.settings.highValueThresholdUSD, state.settings.currency);
+  els.highValueThresholdInput.value = converted.value.toFixed(2);
+  els.highValueThresholdSymbol.textContent = CURRENCY_SYMBOLS[converted.currency] || '$';
+  els.highValueThresholdCurrencyLabel.textContent = converted.currency;
+}
 els.showPackArtToggle.addEventListener('change', () => {
   state.settings.showPackArt = els.showPackArtToggle.checked;
 });
@@ -3352,19 +3493,41 @@ function closeCardModal(){
   if(!els.settingsModal.classList.contains('open')) document.body.style.overflow = '';
 }
 
-async function ensureFxRate(){
-  if(state.fxRate !== null) return state.fxRate;
+const CURRENCY_SYMBOLS = {
+  USD: '$', AUD: '$', EUR: '€', GBP: '£', CAD: '$', JPY: '¥',
+  CNY: '¥', INR: '₹', NZD: '$', CHF: 'CHF ', SGD: '$'
+};
+
+async function ensureFxRates(){
+  if(state.fxRates !== null) return state.fxRates;
   try{
     const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    state.fxRate = (json.rates && json.rates.AUD) ? json.rates.AUD : false;
+    state.fxRates = json.rates || false;
   }catch(err){
-    console.warn('Could not fetch USD→AUD rate', err);
-    state.fxRate = false;
+    console.warn('Could not fetch exchange rates', err);
+    state.fxRates = false;
   }
-  return state.fxRate;
+  return state.fxRates;
 }
+
+function getFxRate(currency){
+  if(currency === 'USD') return 1;
+  if(!state.fxRates) return null;
+  return state.fxRates[currency] || null;
+}
+
+// Converts a USD amount into the given currency, awaiting the shared rate table if
+// needed. Falls back to the raw USD amount (labeled as USD) if a rate isn't available.
+async function convertUsd(usdValue, currency){
+  if(currency === 'USD') return { value: usdValue, currency: 'USD' };
+  await ensureFxRates();
+  const rate = getFxRate(currency);
+  if(rate) return { value: usdValue * rate, currency };
+  return { value: usdValue, currency: 'USD' };
+}
+
 
 // There's no reliable API for actual per-set retail pricing, so this uses a flat,
 // commonly-cited modern booster MSRP as a rough estimate rather than real per-set data.
@@ -3380,14 +3543,10 @@ const DEFAULT_COLLECTOR_PACK_PRICE_USD = 37.99;
 async function updatePackCostNote(){
   const n = Math.max(1, Math.min(30, parseInt(els.packCount.value, 10) || 6));
   const isCollector = state.useCollector;
-  let perPack = isCollector ? DEFAULT_COLLECTOR_PACK_PRICE_USD : DEFAULT_PLAY_PACK_PRICE_USD;
-  let currency = state.settings.currency;
-  if(currency === 'AUD'){
-    await ensureFxRate();
-    if(state.fxRate) perPack = perPack * state.fxRate;
-  }else if(currency === 'EUR'){
-    currency = 'USD'; // no EUR conversion source for this estimate — show USD instead of mislabeling it
-  }
+  const basePriceUsd = isCollector ? DEFAULT_COLLECTOR_PACK_PRICE_USD : DEFAULT_PLAY_PACK_PRICE_USD;
+  const converted = await convertUsd(basePriceUsd, state.settings.currency);
+  const perPack = converted.value;
+  const currency = converted.currency;
   const total = perPack * n;
   const boosterLabel = isCollector ? 'Collector Booster' : 'Play Booster';
   els.packCostNote.innerHTML = `Approx. retail cost (${boosterLabel}): ${formatCurrency(perPack, currency)} per pack · ${formatCurrency(total, currency)} for ${n} pack${n === 1 ? '' : 's'} <span style="opacity:0.65; font-style:italic;">(Wizards' stated MSRP, not a live market price — actual/secondary-market prices vary and can run well above MSRP for hyped sets)</span>`;
@@ -3416,7 +3575,7 @@ async function openCardModal(pulledCard, navList, navIdx){
         if(!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       }),
-      ensureFxRate()
+      ensureFxRates().then(() => getFxRate(state.settings.currency))
     ]);
     sc = fetchedSc;
     if(pulledCard.scryfallId) state.scryfallCache[pulledCard.scryfallId] = sc;
@@ -3583,21 +3742,27 @@ function renderModalFromScryfall(sc, fxRate, pulledCard){
       : `<span>${text}</span>`;
   };
   const priceParts = [];
-  let hasAud = false;
+  let hasConverted = false;
+  const selectedCurrency = state.settings.currency;
+  const symbol = CURRENCY_SYMBOLS[selectedCurrency] || '$';
   if(prices.usd) priceParts.push(priceLink('USD', escapeHtml(prices.usd), '$'));
   if(prices.usd_foil) priceParts.push(priceLink(`USD ${foilLabel}`, escapeHtml(prices.usd_foil), '$'));
-  if(fxRate && prices.usd){
-    const aud = (parseFloat(prices.usd) * fxRate).toFixed(2);
-    priceParts.push(priceLink('AUD', aud, '$'));
-    hasAud = true;
-  }
-  if(fxRate && prices.usd_foil){
-    const audFoil = (parseFloat(prices.usd_foil) * fxRate).toFixed(2);
-    priceParts.push(priceLink(`AUD ${foilLabel}`, audFoil, '$'));
-    hasAud = true;
+  // The second currency shown always matches whatever's picked in Settings — USD is
+  // never duplicated if that's also the selected currency.
+  if(selectedCurrency !== 'USD' && fxRate){
+    if(prices.usd){
+      const converted = (parseFloat(prices.usd) * fxRate).toFixed(2);
+      priceParts.push(priceLink(selectedCurrency, converted, symbol));
+      hasConverted = true;
+    }
+    if(prices.usd_foil){
+      const convertedFoil = (parseFloat(prices.usd_foil) * fxRate).toFixed(2);
+      priceParts.push(priceLink(`${selectedCurrency} ${foilLabel}`, convertedFoil, symbol));
+      hasConverted = true;
+    }
   }
   const priceRow = priceParts.join('');
-  const priceNote = hasAud ? `<p class="settings-note" style="margin:8px 0 0; font-style:italic; font-size:11px;">Some currencies aren't natively priced by Scryfall, so those figures are estimated from a live exchange rate rather than official listings.</p>` : '';
+  const priceNote = hasConverted ? `<p class="settings-note" style="margin:8px 0 0; font-style:italic; font-size:11px;">Some currencies aren't natively priced by Scryfall, so those figures are estimated from a live exchange rate rather than official listings.</p>` : '';
 
   return `
     <div class="modal-body">
