@@ -1,0 +1,3627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTG Pack Simulator — Sealed Format</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --felt: #163229;
+    --felt-dark: #0d1f19;
+    --felt-light: #1f4438;
+    --parchment: #eee3ca;
+    --parchment-dim: #cbbfa2;
+    --gold: #c9a227;
+    --gold-light: #ecc964;
+    --ink: #12100c;
+    --common: #9aa3ab;
+    --uncommon: #cfe3e8;
+    --rare: #d9b53c;
+    --mythic: #ff7a45;
+    --land: #b98a5e;
+    --radius: 10px;
+    /* Fixed gold — deliberately NOT part of the theme system, so foil tags and the
+       Collector Booster button always read as "gold" regardless of the active theme. */
+    --fixed-gold: #d9a521;
+    --fixed-gold-light: #f0c94a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(255,255,255,0.05), transparent 40%),
+      radial-gradient(ellipse at 100% 100%, rgba(0,0,0,0.35), transparent 50%),
+      var(--felt);
+    background-blend-mode: normal;
+    color: var(--parchment);
+    font-family: 'Inter', sans-serif;
+    padding: 32px 20px 80px;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 4px);
+    pointer-events:none;
+  }
+  .wrap{ max-width: 1040px; margin: 0 auto; position:relative; }
+  header{ text-align:center; margin-bottom: 34px; }
+  header .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing: 0.28em;
+    font-size: 11px;
+    color: var(--gold-light);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1{
+    font-family:'Cinzel', serif;
+    font-weight:700;
+    font-size: clamp(32px, 6vw, 52px);
+    margin: 0 0 8px;
+    letter-spacing: 0.02em;
+    background: linear-gradient(180deg, var(--gold-light), var(--gold) 60%, #8a6a19);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 2px 24px rgba(201,162,39,0.25);
+  }
+  header p.tagline{
+    color: var(--parchment-dim);
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height:1.5;
+  }
+  header p.tagline a{ color: var(--gold-light); }
+  header p.credit-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--parchment-dim);
+    opacity: 0.65;
+    font-style: italic;
+    margin: 0 0 14px;
+  }
+
+  .panel{
+    background: linear-gradient(180deg, var(--felt-light), var(--felt-dark));
+    border: 1px solid rgba(201,162,39,0.25);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+    margin-bottom: 24px;
+  }
+
+  .controls{ display:flex; flex-wrap:wrap; gap:12px 10px; align-items:flex-end; }
+  .set-select-group{ display:flex; align-items:flex-end; gap:8px; }
+  .field{ display:flex; flex-direction:column; gap:6px; position:relative; }
+  .field label{ font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color: var(--parchment-dim); font-family:'IBM Plex Mono', monospace; }
+  .field-hint{ position:absolute; top:100%; left:0; margin-top:4px; white-space:nowrap; font-size:10.5px; font-style:italic; color: var(--parchment-dim); opacity:0.65; text-align:left; }
+  #packCount{ width: 70px; }
+  input, select{
+    background: rgba(0,0,0,0.28);
+    border: 1px solid rgba(201,162,39,0.3);
+    color: var(--parchment);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+  }
+  input::placeholder{ color: rgba(238,227,202,0.4); }
+  input:focus, select:focus, button:focus{ outline: 2px solid var(--gold-light); outline-offset: 1px; }
+  #setSearch{ width: 230px; max-width: 45vw; }
+  #packCount{ width: 80px; }
+
+  button{
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size: 13.5px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(201,162,39,0.4);
+    background: linear-gradient(180deg, rgba(201,162,39,0.16), rgba(201,162,39,0.05));
+    color: var(--gold-light);
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.2s ease;
+  }
+  button:hover:not(:disabled){ background: linear-gradient(180deg, rgba(201,162,39,0.28), rgba(201,162,39,0.1)); transform: translateY(-1px); }
+  button:active:not(:disabled){ transform: translateY(0px); }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+  button.primary{
+    background: linear-gradient(180deg, var(--gold-light), var(--gold));
+    color: var(--ink);
+    border-color: transparent;
+    font-weight:700;
+  }
+  button.primary:hover:not(:disabled){ background: linear-gradient(180deg, #f3d886, var(--gold-light)); }
+  button.collector-glisten{ position:relative; overflow:hidden; }
+  button.collector-glisten::after{
+    content:"";
+    position:absolute; top:-40%; left:-60%; width:45%; height:180%;
+    background: linear-gradient(115deg, transparent 10%, rgba(255,255,255,0.75) 50%, transparent 90%);
+    transform: skewX(-22deg);
+    animation: collectorSweep 3s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes collectorSweep{
+    0%{ left:-60%; }
+    22%{ left:130%; }
+    100%{ left:130%; }
+  }
+  button.ghost{ background: transparent; color: var(--parchment-dim); border-color: rgba(238,227,202,0.2); }
+  .icon-btn{
+    width: 42px; height: 42px; padding: 0; flex-shrink: 0;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,0.28); border: 1px solid rgba(201,162,39,0.3);
+    color: var(--parchment); font-size: 19px; border-radius: 8px;
+  }
+  .icon-btn:hover:not(:disabled){ background: rgba(0,0,0,0.42); }
+  .icon-btn img{ width: 22px; height: 22px; filter: invert(1); }
+  .icon-btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+  .icon-btn.active{ background: rgba(201,162,39,0.22); border-color: rgba(201,162,39,0.55); }
+  .collector-btn{
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(238,227,202,0.25);
+    color: var(--parchment-dim);
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+  .collector-btn:hover:not(:disabled){ background: rgba(0,0,0,0.55); }
+  .collector-btn.primary{
+    background: var(--fixed-gold);
+    color: #1a1400;
+    border-color: transparent;
+    font-weight:700;
+  }
+  .collector-btn.primary:hover:not(:disabled){ background: var(--fixed-gold-light); }
+
+  #status{ min-height: 20px; font-family:'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--gold-light); margin: 4px 4px 0; }
+  #status.err{ color: #ff8b6b; }
+
+  /* pack (signature element) */
+  .pack-stage{ display:flex; justify-content:center; flex-wrap:wrap; gap:16px; margin: 8px 0 26px; min-height: 40px; }
+  .pack-stage.pack-stage-multi{ justify-content:center; }
+  .pack{
+    position: relative;
+    width: 150px; height: 210px;
+    border-radius: 8px 8px 16px 16px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #2a2a2a, #0c0c0c 40%, #2a2a2a 60%, #050505);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.5);
+    overflow:hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .pack.pack-collector{
+    background: linear-gradient(135deg, #7a5c14, #3d2c08 40%, #8a6a1c 60%, #241a05);
+    border: 1px solid rgba(255,215,120,0.35);
+    box-shadow: 0 18px 34px rgba(0,0,0,0.55), 0 0 24px rgba(201,162,39,0.15);
+  }
+  .pack.pack-collector .pack-code{ color: #ffe9a8; }
+  .pack.pack-collector .pack-hint{ color: #ffe9a8; }
+  .pack.pack-collector .pack-seam{ background: rgba(255,230,160,0.6); }
+  .pack::before{
+    content:"";
+    position:absolute; inset:0;
+    background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.35) 35%, transparent 50%);
+    transform: translateX(-120%);
+    animation: shimmer 2.6s ease-in-out infinite;
+  }
+  @keyframes shimmer{ 0%,60%{ transform: translateX(-120%);} 100%{ transform: translateX(120%);} }
+  .pack .pack-code{
+    position:absolute; top:14px; left:0; right:0; text-align:center;
+    font-family:'Cinzel', serif; font-weight:700; letter-spacing:0.12em;
+    color: var(--gold-light); font-size: 13px; text-transform:uppercase;
+  }
+  .pack .pack-name{
+    position:absolute; top: 40%; left:10px; right:10px; text-align:center;
+    font-family:'IBM Plex Mono', monospace; font-size: 10px; color: rgba(238,227,202,0.55);
+  }
+  .pack .pack-seam{ position:absolute; left:10%; right:10%; top:0; height:2px; background: rgba(201,162,39,0.5); }
+  .pack .pack-hint{
+    position:absolute; bottom:14px; left:0; right:0; text-align:center;
+    font-family:'IBM Plex Mono', monospace; font-size: 10px; letter-spacing:0.1em; color: var(--gold-light); text-transform:uppercase;
+  }
+  .pack.tearing{ animation: tear 0.5s ease forwards; }
+  .pack.pack-idle{
+    background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(0,0,0,0.15));
+    border: 1px dashed rgba(238,227,202,0.25);
+    cursor: default;
+    opacity: 0.6;
+  }
+  .pack.pack-idle::before{ display:none; }
+  .pack.pack-idle .pack-name{ top:50%; transform: translateY(-50%); font-style:italic; line-height:1.5; }
+  .pack.pack-mini{ width: 108px; height: 152px; }
+  .pack.pack-mini .pack-code{ font-size: 11px; top:10px; }
+  .pack.pack-mini .pack-hint{ font-size: 8.5px; bottom:10px; }
+  .pack.pack-mini .pack-icon{ padding: 22px 14px 34px; }
+  @keyframes tear{
+    0%{ transform: scale(1) rotate(0deg); }
+    40%{ transform: scale(1.06) rotate(-2deg); }
+    100%{ transform: scale(0.2) rotate(6deg); opacity:0; }
+  }
+
+  /* card reveal grid */
+  .tab-bar{ display:flex; gap:8px; margin: 0 0 20px; border-bottom: 1px solid rgba(201,162,39,0.2); }
+  .tab-btn{
+    background: transparent; border: none; border-bottom: 2px solid transparent;
+    color: var(--parchment-dim); font-family:'Inter', sans-serif; font-weight:600; font-size:14px;
+    padding: 10px 4px; margin-bottom:-1px; cursor:pointer; border-radius:0;
+  }
+  .tab-btn:hover{ color: var(--parchment); background:transparent; transform:none; }
+  .tab-btn.active{ color: var(--gold-light); border-bottom-color: var(--gold); }
+  .tab-pane{ display:none; }
+  .tab-pane.active{ display:block; }
+  #revealEmptyMsg, #poolEmptyMsg{ display:none; padding: 20px 4px; }
+  .go-to-pool-btn{ margin: 22px 4px 0; }
+
+  .reveal-title{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color: var(--parchment-dim); margin: 0 4px 12px; }
+  .tab-desc{ font-size:13px; color: var(--parchment-dim); margin: 0 4px 16px; line-height:1.5; max-width: 720px; }
+  .card-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+  }
+  .mtg-card{
+    border-radius: 8px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--rarity-color, rgba(255,255,255,0.15));
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.3), 0 8px 18px rgba(0,0,0,0.4);
+    overflow: hidden;
+    opacity: 0;
+    position: relative;
+    transform: translateY(14px) scale(0.96);
+    animation: cardIn 0.28s ease forwards;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mtg-card.no-anim{ animation:none !important; opacity:1 !important; transform:none !important; }
+  .mtg-card.mythic-border::before{
+    content:""; position:absolute; inset:0; border-radius:8px; padding:2px;
+    background: linear-gradient(120deg, var(--mythic), #ffe3c9, var(--mythic));
+    background-size:220% 220%;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: mythicBorderShift 3.2s linear infinite;
+    pointer-events:none;
+    z-index:2;
+  }
+  @keyframes mythicBorderShift{ 0%{ background-position:0% 50%; } 100%{ background-position:220% 50%; } }
+  @keyframes shakeCard{
+    0%,100%{ transform: translateX(0) rotate(0); }
+    15%{ transform: translateX(-6px) rotate(-2deg); }
+    30%{ transform: translateX(6px) rotate(2deg); }
+    45%{ transform: translateX(-5px) rotate(-1.5deg); }
+    60%{ transform: translateX(5px) rotate(1.5deg); }
+    75%{ transform: translateX(-3px) rotate(-0.5deg); }
+    90%{ transform: translateX(3px) rotate(0.5deg); }
+  }
+  .mtg-card.reaction-shake{ opacity:1 !important; animation: shakeCard 0.6s ease; }
+  @keyframes mythicGlisten{
+    0%{ filter: brightness(1) saturate(1); box-shadow: 0 0 0 rgba(255,122,69,0); }
+    30%{ filter: brightness(1.7) saturate(1.4); box-shadow: 0 0 26px 6px rgba(255,122,69,0.55); }
+    60%{ filter: brightness(1.3) saturate(1.2); box-shadow: 0 0 16px 3px rgba(255,122,69,0.32); }
+    100%{ filter: brightness(1) saturate(1); box-shadow: 0 0 0 rgba(255,122,69,0); }
+  }
+  .mtg-card.reaction-glisten{ opacity:1 !important; transform:none !important; animation: mythicGlisten 2.4s ease-in-out; }
+  .mtg-card:hover{ box-shadow: 0 0 0 1px rgba(0,0,0,0.3), 0 14px 26px rgba(0,0,0,0.5); filter: brightness(1.05); }
+  @keyframes cardIn{ to{ opacity:1; transform: translateY(0) scale(1); } }
+  .mtg-card .art{
+    width:100%; aspect-ratio: 5/7;
+    background: linear-gradient(160deg, var(--felt-light), var(--felt-dark));
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .mtg-card .art img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .mtg-card .art .fallback{ padding:10px; text-align:center; font-family:'Cinzel', serif; font-size:13px; color: var(--parchment-dim); }
+  .mtg-card .foil-badge{
+    position:absolute; bottom:6px; left:6px; font-family:'IBM Plex Mono', monospace; font-size:9px;
+    background: linear-gradient(120deg, #ff9de2, #7dd3ff, #ffe08a); color:#111; padding:2px 5px; border-radius:4px; font-weight:700;
+  }
+  .mtg-card .qty-badge{
+    position:absolute; top:6px; left:6px; font-family:'IBM Plex Mono', monospace; font-size:10px; font-weight:700;
+    background: rgba(0,0,0,0.6); color: var(--gold-light); padding:2px 7px; border-radius:10px; border:1px solid rgba(201,162,39,0.5);
+  }
+  .mtg-card .deck-tick{
+    position:absolute; top:6px; right:6px; z-index:3;
+    min-width:20px; height:20px; padding:0 6px;
+    border-radius:10px; background: rgba(63,191,95,0.92); color:#fff;
+    font-family:'IBM Plex Mono', monospace; font-size:10px; font-weight:700;
+    display:none; align-items:center; justify-content:center; gap:2px;
+  }
+  .mtg-card .deck-tick.show{ display:flex; }
+  .mtg-card .deck-ctrl-wrap{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    display:flex; gap:10px; z-index:4;
+    opacity:0; transition: opacity 0.15s ease;
+  }
+  .mtg-card .art:hover .deck-ctrl-wrap{ opacity:1; }
+  .mtg-card .deck-ctrl-btn{
+    width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:19px; font-weight:800; line-height:1; font-family:'Inter', sans-serif;
+    border:2px solid rgba(255,255,255,0.85); cursor:pointer; padding:0;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .mtg-card .deck-ctrl-btn:hover{ transform: scale(1.1); }
+  .mtg-card .deck-ctrl-btn:disabled{ opacity:0.35; cursor:not-allowed; transform:none; }
+  .mtg-card .deck-ctrl-btn.add{ background:#3fbf5f; color:#fff; }
+  .mtg-card .deck-ctrl-btn.add:hover{ background:#4ed473; }
+  .mtg-card .deck-ctrl-btn.remove{ background:#e0483f; color:#fff; }
+  .mtg-card .deck-ctrl-btn.remove:hover{ background:#f05a50; }
+  .mtg-card .meta{ padding: 8px 9px 10px; border-top: 2px solid var(--rarity-color, rgba(255,255,255,0.15)); }
+  .mtg-card .name{ font-size:12.5px; font-weight:600; line-height:1.25; margin-bottom:3px; }
+  .mtg-card .type-line{ font-size:10px; font-style:italic; color: var(--parchment-dim); margin-bottom:4px; }
+  .mtg-card .sub{ font-size:10.5px; color: var(--parchment-dim); display:flex; justify-content:space-between; gap:6px; }
+  .mtg-card .sub .rarity{ text-transform:capitalize; color: var(--rarity-color); font-weight:600; }
+
+  /* pool summary */
+  .pool-stats{ display:flex; flex-wrap:wrap; gap:22px; margin-bottom: 6px; }
+  .stat{ min-width:90px; }
+  .stat .num{ font-family:'IBM Plex Mono', monospace; font-size: 24px; font-weight:600; color: var(--gold-light); }
+  .stat .label{ font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color: var(--parchment-dim); }
+  .stat.common .num{ color: var(--common); }
+  .stat.uncommon .num{ color: var(--uncommon); }
+  .stat.rare .num{ color: var(--rare); }
+  .stat.mythic .num{ color: var(--mythic); }
+
+  .info-grid{ display:flex; flex-wrap:wrap; gap:22px; margin-bottom: 14px; }
+  .info-meta{ display:flex; flex-wrap:wrap; gap:14px 28px; margin: 2px 0 16px; }
+  .info-meta .meta-label{ display:block; font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase; color: var(--parchment-dim); margin-bottom:2px; }
+  .info-meta .meta-value{ font-size:13.5px; font-weight:600; color: var(--parchment); }
+  .info-head{ font-family:'Cinzel', serif; font-size:16px; color: var(--gold-light); margin: 0 0 4px; }
+  .info-sub{ font-size:12px; color: var(--parchment-dim); margin: 0 0 16px; }
+  table.rarity-table{ border-collapse: collapse; width:100%; max-width: 420px; font-size:13px; }
+  table.rarity-table th, table.rarity-table td{ text-align:left; padding: 6px 10px; border-bottom: 1px solid rgba(238,227,202,0.12); }
+  table.rarity-table th{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color: var(--parchment-dim); }
+  table.rarity-table td.rarity-name{ text-transform:capitalize; font-weight:600; }
+  .variant-note{ font-size:11.5px; color: var(--parchment-dim); margin-top:10px; font-family:'IBM Plex Mono', monospace; line-height:1.6; }
+
+  .pool-header{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-bottom: 16px; }
+  .pool-header .reveal-title{ margin:0; }
+  #poolSearch{ flex: 1 1 200px; max-width: 280px; }
+  .sort-select{ flex: 0 0 auto; font-size: 13px; padding: 8px 10px; }
+  .type-filter-row{ display:flex; flex-wrap:wrap; gap: 8px 14px; margin-bottom: 18px; }
+  .type-chip{
+    display:flex; align-items:center; gap:6px;
+    font-size: 12px; color: var(--parchment-dim);
+    background: rgba(0,0,0,0.22); border: 1px solid rgba(238,227,202,0.15);
+    padding: 5px 10px 5px 8px; border-radius: 20px; cursor:pointer; user-select:none;
+  }
+  .type-chip input{ margin:0; accent-color: var(--gold); cursor:pointer; }
+  .type-chip.checked{ color: var(--gold-light); border-color: rgba(201,162,39,0.5); background: rgba(201,162,39,0.1); }
+  .land-add-chip{ cursor:pointer; }
+  .land-add-chip:hover{ border-color: rgba(63,191,95,0.6); color: var(--parchment); }
+  .land-add-chip .land-add-plus{ color:#4ed473; font-weight:800; }
+  .basic-land-row{ margin-bottom:18px; }
+  .basic-land-row select{ min-width:120px; }
+  .basic-land-row input[type="number"]{ width:70px; }
+  .rarity-section{ margin-bottom: 26px; }
+  .rarity-subhead{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase;
+    margin: 0 0 10px; padding-bottom:6px; border-bottom: 1px solid rgba(238,227,202,0.15);
+    cursor: pointer; user-select:none; display:flex; align-items:center; gap:8px;
+  }
+  .rarity-subhead .arrow{ font-size:10px; transition: transform 0.15s ease; }
+  .rarity-subhead .count{ color: var(--parchment-dim); font-weight:400; margin-left:2px; }
+  .rarity-section .card-grid{ overflow:hidden; }
+
+  /* card detail modal */
+  .modal-overlay{
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(5,8,7,0.86);
+    backdrop-filter: blur(3px);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.open{ display: flex; }
+  .modal-content{
+    position: relative;
+    width: 100%; max-width: 900px; max-height: 88vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--felt-light), var(--felt-dark));
+    border: 1px solid rgba(201,162,39,0.35);
+    border-radius: 12px;
+    box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+    padding: 26px;
+  }
+  .modal-close{
+    position: absolute; top: 14px; right: 14px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(238,227,202,0.25);
+    color: var(--parchment); font-size: 18px; line-height: 1;
+    display:flex; align-items:center; justify-content:center;
+    cursor: pointer; z-index: 2;
+  }
+  .modal-close:hover{ background: rgba(0,0,0,0.6); color: var(--gold-light); }
+  .modal-nav-arrow{
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 46px; height: 46px; border-radius: 50%;
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(238,227,202,0.25);
+    color: var(--parchment); font-size: 26px; line-height: 1;
+    display:flex; align-items:center; justify-content:center;
+    cursor: pointer; z-index: 1001;
+  }
+  .modal-nav-arrow:hover{ background: rgba(0,0,0,0.65); color: var(--gold-light); transform: translateY(-50%) !important; }
+  .modal-nav-arrow.left{ left: 40px; }
+  .modal-nav-arrow.right{ right: 40px; }
+  @media (max-width: 640px){
+    .modal-nav-arrow{ width:38px; height:38px; font-size:20px; }
+    .modal-nav-arrow.left{ left:14px; }
+    .modal-nav-arrow.right{ right:14px; }
+  }
+  .modal-info h2 .modal-qty{ font-family:'IBM Plex Mono', monospace; font-size: 0.5em; color: var(--gold-light); font-weight:700; background: rgba(201,162,39,0.15); border:1px solid rgba(201,162,39,0.4); padding:1px 7px; border-radius:10px; }
+  .modal-info h2 .foil-tag{ font-size: 0.55em; font-weight:800; color: var(--fixed-gold); letter-spacing:0.02em; }
+  .modal-frame-label{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color: var(--gold-light); margin: 0 0 10px; }
+  .modal-body{ display:flex; gap: 26px; flex-wrap: wrap; }
+  .modal-img{ flex: 0 0 300px; max-width: 100%; }
+  .modal-img img{ width:100%; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,0.5); display:block; }
+  .modal-info{ flex: 1 1 320px; min-width: 260px; }
+  .modal-info h2{ font-family:'Cinzel', serif; font-size: 22px; margin: 0 0 4px; color: var(--gold-light); display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .modal-info h2 .cardnum{ font-family:'IBM Plex Mono', monospace; font-size: 0.6em; color: var(--parchment-dim); font-weight:500; }
+  .modal-type{ font-size: 13.5px; color: var(--parchment-dim); margin-bottom: 14px; padding-bottom:12px; border-bottom: 1px solid rgba(238,227,202,0.15); }
+  .modal-oracle{ font-size: 14px; line-height: 1.6; margin-bottom: 14px; white-space: pre-line; }
+  .modal-oracle em{ color: var(--parchment-dim); }
+  .mana-symbol{ height:1em; width:1em; vertical-align:-0.15em; margin:0 1px; }
+  .modal-flavor{ font-style: italic; color: var(--parchment-dim); font-size: 13px; line-height:1.6; margin-bottom: 14px; padding-bottom:14px; border-bottom: 1px solid rgba(238,227,202,0.15); }
+  .modal-pt{ font-family:'IBM Plex Mono', monospace; font-weight:700; font-size: 16px; margin-bottom: 14px; }
+  .modal-artist{ font-size: 12.5px; color: var(--parchment-dim); margin-bottom: 18px; }
+  .modal-artist a{ color: var(--gold-light); }
+  .modal-section-title{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color: var(--parchment-dim); margin: 0 0 8px; }
+  .modal-parts{ list-style:none; padding:0; margin: 0 0 18px; font-size: 13px; }
+  .modal-parts li{ padding: 6px 0; border-bottom: 1px solid rgba(238,227,202,0.1); }
+  .legal-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:6px; margin-bottom: 18px; }
+  .legal-pill{ display:flex; align-items:center; gap:8px; font-size:12px; }
+  .legal-pill .tag{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:0.04em; min-width:64px; text-align:center; }
+  .legal-pill .tag.legal{ background: rgba(94,166,110,0.25); color:#8fd39f; border:1px solid rgba(94,166,110,0.4); }
+  .legal-pill .tag.not{ background: rgba(255,255,255,0.06); color: var(--parchment-dim); border:1px solid rgba(255,255,255,0.12); }
+  .legal-pill .tag.banned{ background: rgba(255,107,107,0.2); color:#ff9b9b; border:1px solid rgba(255,107,107,0.4); }
+  .price-row{ display:flex; gap:20px; flex-wrap:wrap; font-family:'IBM Plex Mono', monospace; font-size:13px; }
+  .price-row a.price-link{ text-decoration:none; color: var(--parchment); }
+  .price-row a.price-link:hover .price{ text-decoration: underline; }
+  .price-row .price{ color: var(--gold-light); }
+  .scryfall-link-btn{
+    display:inline-block; margin: 4px 0 16px; font-family:'IBM Plex Mono', monospace; font-size:12px;
+    color: var(--gold-light); text-decoration:none; border: 1px solid rgba(201,162,39,0.4);
+    padding: 6px 12px; border-radius: 6px; background: rgba(201,162,39,0.08);
+    cursor:pointer;
+  }
+  .scryfall-link-btn:hover{ background: rgba(201,162,39,0.18); }
+  .scryfall-link-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .scryfall-link-btn.img-action-btn{
+    display:block; width:100%; box-sizing:border-box; text-align:center; margin: 10px 0 0;
+  }
+  .modal-loading, .modal-error{ padding: 40px 10px; text-align:center; color: var(--parchment-dim); font-family:'IBM Plex Mono', monospace; font-size:13px; }
+
+  .settings-title{ font-family:'Cinzel', serif; color: var(--gold-light); margin: 0 0 18px; font-size:20px; }
+  .settings-category{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.12em; text-transform:uppercase;
+    color: var(--gold-light); margin: 22px 0 12px; padding-top:16px; border-top: 1px solid rgba(238,227,202,0.12);
+  }
+  .settings-category:first-of-type{ margin-top:0; padding-top:0; border-top:none; }
+  .setting-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; }
+  .setting-row label{ font-size:14px; }
+  .settings-note{ font-size:12px; color: var(--parchment-dim); margin: 0 0 20px; line-height:1.5; }
+  .setting-toggle{ display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:14px; cursor:pointer; }
+  .setting-toggle input{ width:16px; height:16px; accent-color: var(--gold); cursor:pointer; flex-shrink:0; }
+
+  .theme-picker{ position:relative; }
+  .theme-picker-btn{
+    display:flex; align-items:center; gap:9px;
+    background: rgba(0,0,0,0.28); border: 1px solid rgba(201,162,39,0.3);
+    color: var(--parchment); padding: 8px 12px; border-radius: 6px;
+    cursor:pointer; font-family:'Inter', sans-serif; font-size:13px;
+  }
+  .theme-picker-btn .chev{ font-size:10px; color: var(--parchment-dim); margin-left:2px; }
+  .theme-swatches{ display:flex; gap:3px; flex-shrink:0; }
+  .theme-swatches span{ width:11px; height:11px; border-radius:50%; display:inline-block; border:1px solid rgba(255,255,255,0.3); }
+  .theme-picker-list{
+    position:absolute; top:calc(100% + 6px); right:0; min-width:210px;
+    background: var(--felt-dark); border: 1px solid rgba(201,162,39,0.3); border-radius:8px;
+    padding:6px; display:none; z-index:20; box-shadow: 0 14px 30px rgba(0,0,0,0.55);
+  }
+  .theme-picker-list.open{ display:block; }
+  .theme-option{ display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:6px; cursor:pointer; font-size:13px; }
+  .theme-option:hover{ background: rgba(201,162,39,0.12); }
+  .theme-option.active{ background: rgba(201,162,39,0.2); color: var(--gold-light); }
+
+  .pack .pack-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding: 30px 22px 44px; }
+  .pack .pack-icon img{ width:72%; height:auto; filter: invert(1) drop-shadow(0 4px 10px rgba(0,0,0,0.6)); }
+
+  .stat.value{ margin-left:auto; padding-left:20px; border-left: 1px solid rgba(238,227,202,0.2); }
+
+  footer{ text-align:center; margin-top: 40px; font-size:11.5px; color: rgba(238,227,202,0.4); font-family:'IBM Plex Mono', monospace; line-height:1.6; }
+  footer a{ color: var(--gold-light); }
+
+  @media (prefers-reduced-motion: reduce){
+    .pack::before, .pack.tearing{ animation: none !important; }
+    .mtg-card{ animation: none !important; opacity: 1 !important; transform: none !important; }
+  }
+  body.no-animations *{ transition: none !important; }
+  body.no-animations .pack::before, body.no-animations .pack.tearing{ animation: none !important; }
+  body.no-animations .mtg-card{ animation: none !important; opacity: 1 !important; transform: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Sealed Format</div>
+    <h1>MTG Pack Simulator</h1>
+    <p class="credit-line">vibe coded by Terrabot</p>
+    <p class="tagline">Pick any Magic set <a href="https://mtgjson.com" target="_blank" rel="noopener">MTGJSON</a> has data for, tear into boosters built from its real print sheets, and watch your sealed pool take shape.</p>
+  </header>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="set-select-group">
+        <button id="setInfoBtn" class="icon-btn" disabled title="Show Set Info">
+          <img id="setInfoIcon" style="display:none;" alt="">
+          <span id="setInfoFallback">ⓘ</span>
+        </button>
+        <div class="field">
+          <label for="setSearch">Set</label>
+          <input id="setSearch" list="setDatalist" placeholder="Loading sets…" autocomplete="off" disabled>
+          <datalist id="setDatalist"></datalist>
+        </div>
+      </div>
+      <div class="field">
+        <label for="packCount">Packs in pool</label>
+        <input id="packCount" type="number" min="1" max="30" value="6">
+        <span class="field-hint">(max 30)</span>
+      </div>
+      <button id="openOneBtn" disabled>Open 1 Pack</button>
+      <button id="openPoolBtn" class="primary" disabled>Open Sealed Pool</button>
+      <div class="set-select-group">
+        <button id="collectorToggle" class="collector-btn" disabled>Collector Booster: N/A</button>
+        <button id="settingsBtn" class="icon-btn" title="Settings">⚙</button>
+      </div>
+    </div>
+    <p class="settings-note" id="packCostNote" style="margin:26px 4px 0;"></p>
+    <div id="status">Loading set list from MTGJSON…</div>
+  </div>
+
+  <div class="panel" id="setInfoPanel" style="display:none;">
+    <div id="setInfoBody"></div>
+  </div>
+
+  <div class="pack-stage" id="packStage"></div>
+  <p class="info-sub" id="packStageCaption" style="text-align:center; margin-top:-14px;"></p>
+
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" id="tabOpenedBtn" data-tab="opened">Just Opened</button>
+    <button class="tab-btn" id="tabPoolBtn" data-tab="pool">Full Pool</button>
+    <button class="tab-btn" id="tabDeckBtn" data-tab="deck">Deck Builder</button>
+    <button class="tab-btn" id="tabSetBtn" data-tab="set">Browse Sets</button>
+  </div>
+
+  <div id="revealSection" class="tab-pane active">
+    <div class="panel" id="revealStatsPanel" style="display:none;">
+      <div class="pool-stats" id="revealStats"></div>
+    </div>
+    <p class="tab-desc">Cards from the most recent pack(s) you opened — sort or filter them below, or head to Full Pool to see your whole collection.</p>
+    <div class="pool-header" style="margin-bottom:12px;">
+      <p class="reveal-title" id="revealTitle" style="margin:0;">Just opened</p>
+      <select id="revealSortSelect" class="sort-select">
+        <option value="name">Sort: Name</option>
+        <option value="number-asc">Sort: Card # (Asc)</option>
+        <option value="number-desc">Sort: Card # (Desc)</option>
+        <option value="price-desc" selected>Sort: Price (High–Low)</option>
+        <option value="price-asc">Sort: Price (Low–High)</option>
+      </select>
+      <select id="revealLandFilter" class="sort-select">
+        <option value="all">Lands: All</option>
+        <option value="only">Lands: Only</option>
+        <option value="hide">Lands: Hide</option>
+      </select>
+    </div>
+    <div class="card-grid" id="revealGrid"></div>
+    <p class="info-sub" id="revealEmptyMsg">Open a pack to see what you pulled.</p>
+    <button id="goToPoolBtn" class="ghost go-to-pool-btn" style="display:none;">View Full Pool →</button>
+  </div>
+
+  <div id="poolTabContent" class="tab-pane">
+    <div class="panel" id="poolPanel" style="display:none;">
+      <div class="pool-stats" id="poolStats"></div>
+    </div>
+
+    <p class="tab-desc">Every card you've opened so far across all packs. Search, sort, and filter here, or hover a card and click + to add it to your deck.</p>
+    <div id="poolSection" style="display:none;">
+      <div class="pool-header">
+        <p class="reveal-title">Full pool</p>
+        <input id="poolSearch" type="text" placeholder="Search pool by name…">
+        <select id="poolSortSelect" class="sort-select">
+          <option value="name">Sort: Name</option>
+          <option value="number-asc">Sort: Card # (Asc)</option>
+        <option value="number-desc">Sort: Card # (Desc)</option>
+          <option value="price-desc" selected>Sort: Price (High–Low)</option>
+          <option value="price-asc">Sort: Price (Low–High)</option>
+        </select>
+        <select id="poolLandFilter" class="sort-select">
+          <option value="all">Lands: All</option>
+          <option value="only">Lands: Only</option>
+          <option value="hide">Lands: Hide</option>
+        </select>
+        <button id="importPoolBtn" class="ghost">Import Pool</button>
+        <button id="exportBtn" class="ghost">Export Pool</button>
+        <button id="resetBtn" class="ghost">Reset Pool</button>
+      </div>
+      <input type="file" id="importPoolFile" accept=".txt" style="display:none;">
+      <div class="type-filter-row" id="poolTypeFilters"></div>
+      <div id="poolByRarity"></div>
+    </div>
+
+    <p class="info-sub" id="poolEmptyMsg">Your pool is empty — open some packs to start building it.</p>
+    <button id="backToOpenedBtn" class="ghost go-to-pool-btn" style="display:none;">← Back to Just Opened</button>
+  </div>
+
+  <div id="setTabContent" class="tab-pane">
+    <div class="pool-header" id="setBrowserSetRow">
+      <p class="reveal-title" style="margin:0;">Browsing set</p>
+      <input id="setBrowserSetSearch" list="setBrowserDatalist" placeholder="Search any set, including companion sets…" autocomplete="off">
+      <datalist id="setBrowserDatalist"></datalist>
+      <button id="setBrowserAddSisterBtn" class="icon-btn" title="Add linked sister set" disabled>+</button>
+    </div>
+    <p class="tab-desc">Browse the full card list of any set — independent of whatever you're currently opening packs from. Use + to also pull in a linked companion set.</p>
+    <p class="info-sub" id="setBrowserMergedNote" style="display:none; margin-top:-10px;"></p>
+    <div class="panel" id="setBrowserPanel" style="display:none;">
+      <div class="pool-stats" id="setBrowserStats"></div>
+      <p class="settings-note" style="font-style:italic; margin:10px 4px 0;">Set value uses foil pricing for foil-only cards and non-foil pricing otherwise — foils are included in the total.</p>
+    </div>
+    <div class="pool-header" id="setBrowserHeader" style="display:none;">
+      <p class="reveal-title">Full card list</p>
+      <input id="setBrowserSearch" type="text" placeholder="Search this set by name…">
+      <select id="setSortSelect" class="sort-select">
+        <option value="name">Sort: Name</option>
+        <option value="number-asc">Sort: Card # (Asc)</option>
+        <option value="number-desc">Sort: Card # (Desc)</option>
+        <option value="price-desc" selected>Sort: Price (High–Low)</option>
+        <option value="price-asc">Sort: Price (Low–High)</option>
+      </select>
+      <select id="setLandFilter" class="sort-select">
+        <option value="all">Lands: All Cards</option>
+        <option value="only">Lands: Only</option>
+        <option value="hide">Lands: Hide</option>
+      </select>
+    </div>
+    <div class="type-filter-row" id="setBrowserTypeFilters"></div>
+    <p class="info-sub" id="setBrowserLoading">Pick a set above to browse its full card list.</p>
+    <div id="setBrowserByRarity"></div>
+  </div>
+
+  <div id="deckTabContent" class="tab-pane">
+    <div class="panel" id="deckStatsPanel">
+      <div class="pool-stats" id="deckStats"></div>
+    </div>
+    <p class="tab-desc">Build your sealed deck from cards in your pool — hover a card in Full Pool (or here, once it's added) and click + to add it, or add extra basic lands below.</p>
+    <div class="pool-header">
+      <p class="reveal-title">Your deck</p>
+      <input id="deckSearch" type="text" placeholder="Search deck by name…">
+      <select id="deckSortSelect" class="sort-select">
+        <option value="name">Sort: Name</option>
+        <option value="number-asc">Sort: Card # (Asc)</option>
+        <option value="number-desc">Sort: Card # (Desc)</option>
+        <option value="price-desc" selected>Sort: Price (High–Low)</option>
+        <option value="price-asc">Sort: Price (Low–High)</option>
+      </select>
+      <button id="addBasicLandBtn" class="ghost">+ Basic Land</button>
+      <button id="importDeckBtn" class="ghost">Import Deck</button>
+      <button id="exportDeckBtn" class="ghost">Export Deck</button>
+      <button id="clearDeckBtn" class="ghost">Clear Deck</button>
+    </div>
+    <input type="file" id="importDeckFile" accept=".txt" style="display:none;">
+    <div class="pool-header basic-land-row" id="basicLandPicker" style="display:none;">
+      <select id="basicLandSelect"></select>
+      <input type="number" id="basicLandQty" min="1" max="20" value="1">
+      <button id="basicLandAddBtn" class="ghost">Add to Deck</button>
+    </div>
+    <p class="info-sub" id="deckEmptyMsg">Your deck is empty — hover a card in Full Pool and click the green + to add it, or add basic lands above.</p>
+    <div id="deckByRarity"></div>
+  </div>
+
+  <footer>
+    Card &amp; set data from <a href="https://mtgjson.com" target="_blank" rel="noopener">MTGJSON</a>. Card images from <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall</a>. Prices from <a href="https://www.tcgplayer.com" target="_blank" rel="noopener">TCGplayer</a>.<br>
+    Booster odds are approximated from each set's published print sheets — treat pulls as fun, not gospel.<br>
+    Powered by Claude AI
+  </footer>
+</div>
+
+<div class="modal-overlay" id="cardModal">
+  <button class="modal-nav-arrow left" id="modalPrevBtn" aria-label="Previous card" style="display:none;">‹</button>
+  <div class="modal-content">
+    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    <div id="modalBody"></div>
+  </div>
+  <button class="modal-nav-arrow right" id="modalNextBtn" aria-label="Next card" style="display:none;">›</button>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-content" style="max-width:460px;">
+    <button class="modal-close" id="settingsClose" aria-label="Close">&times;</button>
+    <div class="settings-body">
+      <h2 class="settings-title">Settings</h2>
+
+      <h3 class="settings-category">Appearance</h3>
+      <div class="setting-row">
+        <label for="themePickerBtn">Colour theme</label>
+        <div class="theme-picker" id="themePicker">
+          <button type="button" class="theme-picker-btn" id="themePickerBtn">
+            <span class="theme-swatches" id="themeBtnSwatches"></span>
+            <span id="themeBtnLabel">Felt Table</span>
+            <span class="chev">▾</span>
+          </button>
+          <div class="theme-picker-list" id="themePickerList"></div>
+        </div>
+      </div>
+      <label class="setting-toggle"><input type="checkbox" id="animationsToggle"><span>Animations</span></label>
+      <label class="setting-toggle"><input type="checkbox" id="showPackArtToggle"><span>Show real set art on packs</span></label>
+
+      <h3 class="settings-category">Gameplay</h3>
+      <label class="setting-toggle"><input type="checkbox" id="instantRipToggle"><span>Instant rip — skip the pack animation entirely</span></label>
+      <label class="setting-toggle"><input type="checkbox" id="autoRipToggle"><span>Auto rip — packs tear themselves, no click needed</span></label>
+      <label class="setting-toggle"><input type="checkbox" id="includeLandsToggle"><span>Include lands when opening packs</span></label>
+      <div class="setting-row">
+        <label for="deckSizeInput">Deck size</label>
+        <input type="number" id="deckSizeInput" min="1" max="250" value="40" style="width:70px;">
+      </div>
+
+      <h3 class="settings-category">Sound</h3>
+      <div class="setting-row">
+        <label for="soundSelect">Pack opening sound</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="soundSelect">
+            <option value="tear">Paper Tear</option>
+            <option value="chime">Chime</option>
+            <option value="thud">Thud</option>
+            <option value="zip">Zip</option>
+          </select>
+          <button type="button" id="soundPreviewBtn" class="ghost" style="padding:6px 10px; font-size:12px;">▶ Preview</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label for="mythicSoundSelect">Mythic reveal sound</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="mythicSoundSelect">
+            <option value="heaven">Heavenly Chime</option>
+            <option value="bell">Deep Bell</option>
+            <option value="none">None</option>
+          </select>
+          <button type="button" id="mythicSoundPreviewBtn" class="ghost" style="padding:6px 10px; font-size:12px;">▶ Preview</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <label for="valueSoundSelect">High-value reveal sound (&gt;$35)</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="valueSoundSelect">
+            <option value="coin">Coin Drop</option>
+            <option value="chaching">Cha-Ching</option>
+            <option value="none">None</option>
+          </select>
+          <button type="button" id="valueSoundPreviewBtn" class="ghost" style="padding:6px 10px; font-size:12px;">▶ Preview</button>
+        </div>
+      </div>
+      <label class="setting-toggle"><input type="checkbox" id="muteToggle"><span>Mute sounds</span></label>
+      <div class="setting-row">
+        <label for="volumeSlider">Sound volume</label>
+        <input type="range" id="volumeSlider" min="0" max="100" value="70" style="width:140px;">
+      </div>
+
+      <h3 class="settings-category">Data &amp; Display</h3>
+      <div class="setting-row">
+        <label for="currencySelect">Currency</label>
+        <select id="currencySelect">
+          <option value="AUD">AUD</option>
+          <option value="USD">USD</option>
+          <option value="EUR">EUR</option>
+        </select>
+      </div>
+      <p class="settings-note">Sets the currency used for the pool's total value. The card detail window always shows USD and AUD.</p>
+      <label class="setting-toggle"><input type="checkbox" id="showLegalityToggle"><span>Show format legality on cards</span></label>
+    </div>
+  </div>
+</div>
+
+<script>
+const RARITY_COLOR = { common: 'var(--common)', uncommon: 'var(--uncommon)', rare: 'var(--rare)', mythic: 'var(--mythic)', special: 'var(--rare)', bonus: 'var(--mythic)' };
+const SET_TYPES_EXCLUDED = new Set(['memorabilia']); // exclude non-card collectibles; everything else (including promos, funny sets, Universes Beyond one-offs, etc.) stays
+const BOOSTER_PREFERENCE = ['play','draft','default','set','arena','theme','collector'];
+
+const state = {
+  sets: [],           // [{code, name, releaseDate}]
+  setsByLabel: {},     // "CODE — Name" -> code
+  cache: {},           // code -> {cardsByUuid, boosterCfg, boosterObjRaw, rawCards}
+  currentCode: null,
+  pool: [],            // flat list of pulled cards {name, rarity, manaCost, type, scryfallId, __foil}
+  useCollector: false,
+  collectorAvailable: false,
+  poolSearchTerm: '',
+  poolTypeFilters: new Set(),
+  collapsedRarities: new Set(),
+  collapsedSetRarities: new Set(),
+  setBrowserCode: null,
+  setBrowserSelectedCode: null, // independent of state.currentCode once the user picks their own set to browse
+  setBrowserLabelsByLabel: {},
+  setBrowserSisterCodes: [],
+  setBrowserMergedCodes: [],
+  setBrowserCards: [],
+  setSearchTerm: '',
+  setTypeFilters: new Set(),
+  poolSort: 'price-desc',
+  setSort: 'price-desc',
+  revealSort: 'price-desc',
+  poolLandFilter: 'all',
+  setLandFilter: 'all',
+  revealLandFilter: 'all',
+  deck: [],
+  suppressCardAnim: false,
+  cardObjectsByKey: new Map(),
+  deckSort: 'price-desc',
+  deckSearchTerm: '',
+  lastRevealCards: [],
+  scryfallCache: {},
+  fxRate: null,
+  poolValue: null,
+  activeTab: 'opened',
+  hasRevealed: false,
+  modalNav: null,
+  settings: {
+    currency: 'AUD',
+    showPackArt: true,
+    instantRip: false,
+    autoRip: false,
+    animations: true,
+    theme: 'obsidian',
+    includeLands: true,
+    deckSize: 40,
+    muted: false,
+    sound: 'tear',
+    mythicSound: 'heaven',
+    valueSound: 'coin',
+    showLegality: true,
+    volume: 0.7
+  }
+};
+
+const THEMES = {
+  felt: {
+    name: 'Felt Table',
+    colors: ['#163229', '#c9a227', '#eee3ca'],
+    vars: { '--felt':'#163229', '--felt-dark':'#0d1f19', '--felt-light':'#1f4438', '--parchment':'#eee3ca', '--parchment-dim':'#cbbfa2', '--gold':'#c9a227', '--gold-light':'#ecc964', '--ink':'#12100c' }
+  },
+  violet: {
+    name: 'Midnight Violet',
+    colors: ['#241b3a', '#8b7fd1', '#ece7fb'],
+    vars: { '--felt':'#241b3a', '--felt-dark':'#150f26', '--felt-light':'#332756', '--parchment':'#ece7fb', '--parchment-dim':'#bdb2df', '--gold':'#8b7fd1', '--gold-light':'#b4a8ef', '--ink':'#0d0918' }
+  },
+  crimson: {
+    name: 'Crimson Vintage',
+    colors: ['#2b1414', '#c97b3d', '#f0dcc4'],
+    vars: { '--felt':'#2b1414', '--felt-dark':'#1a0b0b', '--felt-light':'#3c1c1c', '--parchment':'#f0dcc4', '--parchment-dim':'#d1af8d', '--gold':'#c97b3d', '--gold-light':'#e6a05f', '--ink':'#140707' }
+  },
+  obsidian: {
+    name: 'Obsidian Frost',
+    colors: ['#10131a', '#6fd3ff', '#dbe9f2'],
+    vars: { '--felt':'#10131a', '--felt-dark':'#080a0f', '--felt-light':'#1a2029', '--parchment':'#dbe9f2', '--parchment-dim':'#9fb3c2', '--gold':'#6fd3ff', '--gold-light':'#a1e4ff', '--ink':'#050608' }
+  }
+};
+
+function applyTheme(key){
+  const theme = THEMES[key] || THEMES.felt;
+  for(const [prop, val] of Object.entries(theme.vars)){
+    document.documentElement.style.setProperty(prop, val);
+  }
+  state.settings.theme = key;
+}
+
+const els = {
+  search: document.getElementById('setSearch'),
+  datalist: document.getElementById('setDatalist'),
+  packCount: document.getElementById('packCount'),
+  openOne: document.getElementById('openOneBtn'),
+  packCostNote: document.getElementById('packCostNote'),
+  packStageCaption: document.getElementById('packStageCaption'),
+  openPool: document.getElementById('openPoolBtn'),
+  collectorToggle: document.getElementById('collectorToggle'),
+  setInfoBtn: document.getElementById('setInfoBtn'),
+  setInfoIcon: document.getElementById('setInfoIcon'),
+  setInfoFallback: document.getElementById('setInfoFallback'),
+  setInfoPanel: document.getElementById('setInfoPanel'),
+  setInfoBody: document.getElementById('setInfoBody'),
+  reset: document.getElementById('resetBtn'),
+  status: document.getElementById('status'),
+  packStage: document.getElementById('packStage'),
+  tabBar: document.getElementById('tabBar'),
+  tabOpenedBtn: document.getElementById('tabOpenedBtn'),
+  tabPoolBtn: document.getElementById('tabPoolBtn'),
+  tabSetBtn: document.getElementById('tabSetBtn'),
+  setTabContent: document.getElementById('setTabContent'),
+  tabDeckBtn: document.getElementById('tabDeckBtn'),
+  deckTabContent: document.getElementById('deckTabContent'),
+  deckStats: document.getElementById('deckStats'),
+  deckSortSelect: document.getElementById('deckSortSelect'),
+  addBasicLandBtn: document.getElementById('addBasicLandBtn'),
+  exportDeckBtn: document.getElementById('exportDeckBtn'),
+  clearDeckBtn: document.getElementById('clearDeckBtn'),
+  basicLandPicker: document.getElementById('basicLandPicker'),
+  deckSearch: document.getElementById('deckSearch'),
+  basicLandSelect: document.getElementById('basicLandSelect'),
+  basicLandQty: document.getElementById('basicLandQty'),
+  basicLandAddBtn: document.getElementById('basicLandAddBtn'),
+  deckEmptyMsg: document.getElementById('deckEmptyMsg'),
+  deckByRarity: document.getElementById('deckByRarity'),
+  setBrowserSetSearch: document.getElementById('setBrowserSetSearch'),
+  setBrowserDatalist: document.getElementById('setBrowserDatalist'),
+  setBrowserAddSisterBtn: document.getElementById('setBrowserAddSisterBtn'),
+  setBrowserMergedNote: document.getElementById('setBrowserMergedNote'),
+  setBrowserPanel: document.getElementById('setBrowserPanel'),
+  setBrowserStats: document.getElementById('setBrowserStats'),
+  setBrowserHeader: document.getElementById('setBrowserHeader'),
+  setBrowserSearch: document.getElementById('setBrowserSearch'),
+  setSortSelect: document.getElementById('setSortSelect'),
+  setLandFilter: document.getElementById('setLandFilter'),
+  setBrowserTypeFilters: document.getElementById('setBrowserTypeFilters'),
+  setBrowserLoading: document.getElementById('setBrowserLoading'),
+  setBrowserByRarity: document.getElementById('setBrowserByRarity'),
+  revealStatsPanel: document.getElementById('revealStatsPanel'),
+  revealStats: document.getElementById('revealStats'),
+  revealSection: document.getElementById('revealSection'),
+  revealEmptyMsg: document.getElementById('revealEmptyMsg'),
+  goToPoolBtn: document.getElementById('goToPoolBtn'),
+  backToOpenedBtn: document.getElementById('backToOpenedBtn'),
+  revealTitle: document.getElementById('revealTitle'),
+  revealSortSelect: document.getElementById('revealSortSelect'),
+  revealLandFilter: document.getElementById('revealLandFilter'),
+  revealGrid: document.getElementById('revealGrid'),
+  poolTabContent: document.getElementById('poolTabContent'),
+  poolEmptyMsg: document.getElementById('poolEmptyMsg'),
+  poolPanel: document.getElementById('poolPanel'),
+  poolStats: document.getElementById('poolStats'),
+  poolSection: document.getElementById('poolSection'),
+  poolByRarity: document.getElementById('poolByRarity'),
+  poolSearch: document.getElementById('poolSearch'),
+  poolSortSelect: document.getElementById('poolSortSelect'),
+  poolLandFilter: document.getElementById('poolLandFilter'),
+  poolTypeFilters: document.getElementById('poolTypeFilters'),
+  exportBtn: document.getElementById('exportBtn'),
+  importPoolBtn: document.getElementById('importPoolBtn'),
+  importPoolFile: document.getElementById('importPoolFile'),
+  importDeckBtn: document.getElementById('importDeckBtn'),
+  importDeckFile: document.getElementById('importDeckFile'),
+  cardModal: document.getElementById('cardModal'),
+  modalClose: document.getElementById('modalClose'),
+  modalPrevBtn: document.getElementById('modalPrevBtn'),
+  modalNextBtn: document.getElementById('modalNextBtn'),
+  modalBody: document.getElementById('modalBody'),
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsModal: document.getElementById('settingsModal'),
+  settingsClose: document.getElementById('settingsClose'),
+  currencySelect: document.getElementById('currencySelect'),
+  showPackArtToggle: document.getElementById('showPackArtToggle'),
+  instantRipToggle: document.getElementById('instantRipToggle'),
+  autoRipToggle: document.getElementById('autoRipToggle'),
+  animationsToggle: document.getElementById('animationsToggle'),
+  includeLandsToggle: document.getElementById('includeLandsToggle'),
+  deckSizeInput: document.getElementById('deckSizeInput'),
+  soundSelect: document.getElementById('soundSelect'),
+  soundPreviewBtn: document.getElementById('soundPreviewBtn'),
+  mythicSoundSelect: document.getElementById('mythicSoundSelect'),
+  mythicSoundPreviewBtn: document.getElementById('mythicSoundPreviewBtn'),
+  valueSoundSelect: document.getElementById('valueSoundSelect'),
+  valueSoundPreviewBtn: document.getElementById('valueSoundPreviewBtn'),
+  muteToggle: document.getElementById('muteToggle'),
+  volumeSlider: document.getElementById('volumeSlider'),
+  showLegalityToggle: document.getElementById('showLegalityToggle'),
+  themePickerBtn: document.getElementById('themePickerBtn'),
+  themePickerList: document.getElementById('themePickerList'),
+  themeBtnLabel: document.getElementById('themeBtnLabel'),
+  themeBtnSwatches: document.getElementById('themeBtnSwatches'),
+};
+
+function setStatus(msg, isErr){
+  els.status.textContent = msg;
+  els.status.className = isErr ? 'err' : '';
+}
+
+async function init(){
+  applyTheme(state.settings.theme);
+  try{
+    const res = await fetch('https://mtgjson.com/api/v5/SetList.json');
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const list = json.data
+      .filter(s => !SET_TYPES_EXCLUDED.has(s.type) && !s.isOnlineOnly)
+      .sort((a,b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''));
+    state.sets = list; // full list — kept intact so sister-set relationship lookups still work
+
+    // Hide any set whose parentCode points at another set that's also in the list —
+    // it'll be auto-included as a bonus pull when its parent loads (see
+    // findAndLoadSisterSets), so it shouldn't also show up as its own selectable entry.
+    const codesPresent = new Set(list.map(s => s.code));
+    const displaySets = list.filter(s => !(s.parentCode && codesPresent.has(s.parentCode)));
+
+    els.datalist.innerHTML = '';
+    for(const s of displaySets){
+      const label = `${s.code} — ${s.name}`;
+      state.setsByLabel[label] = s.code;
+      const opt = document.createElement('option');
+      opt.value = label;
+      els.datalist.appendChild(opt);
+    }
+
+    // The View Set browser gets the FULL, unfiltered list — including companion/bonus
+    // sets like Hobbit Eternal — since browsing a companion set's own card list is
+    // still useful even though it's hidden from the main pack-opening selector.
+    els.setBrowserDatalist.innerHTML = '';
+    for(const s of list){
+      const label = `${s.code} — ${s.name}`;
+      state.setBrowserLabelsByLabel[label] = s.code;
+      const opt = document.createElement('option');
+      opt.value = label;
+      els.setBrowserDatalist.appendChild(opt);
+    }
+    els.setBrowserSetSearch.disabled = false;
+    els.search.disabled = false;
+    els.search.placeholder = 'Search sets… e.g. Bloomburrow';
+    setStatus(`${displaySets.length} sets loaded. Pick one to begin.`);
+
+    if(displaySets.length){
+      // Skip announced-but-not-yet-released sets (MTGJSON lists these with a future
+      // releaseDate) — default to the most recent set that's actually out, not
+      // whatever's next on the schedule.
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const alreadyReleased = displaySets.filter(s => s.releaseDate && s.releaseDate <= todayStr);
+      const latest = (alreadyReleased.length ? alreadyReleased : displaySets)[0]; // still sorted newest-first
+      els.search.value = `${latest.code} — ${latest.name}`;
+      await loadSet(latest.code);
+    }
+  }catch(err){
+    console.error(err);
+    setStatus('Could not reach mtgjson.com (likely a cross-origin block from this browser). Try reloading, or open this file outside the sandboxed preview.', true);
+  }
+}
+
+els.search.addEventListener('focus', () => {
+  els.search.value = '';
+});
+els.search.addEventListener('change', async () => {
+  const code = state.setsByLabel[els.search.value];
+  if(!code) return;
+  await loadSet(code);
+});
+els.setBrowserSetSearch.addEventListener('focus', () => {
+  els.setBrowserSetSearch.value = '';
+});
+els.setBrowserSetSearch.addEventListener('change', () => {
+  const code = state.setBrowserLabelsByLabel[els.setBrowserSetSearch.value];
+  if(!code) return;
+  state.setBrowserSelectedCode = code; // from here on this tab no longer follows the main set selector
+  loadSetBrowser(code);
+});
+els.setBrowserAddSisterBtn.addEventListener('click', mergeSisterSetsIntoBrowser);
+
+async function loadSet(code){
+  els.openOne.disabled = true;
+  els.openPool.disabled = true;
+  els.setInfoBtn.disabled = true;
+  els.setInfoBtn.classList.remove('active');
+  els.setInfoPanel.style.display = 'none';
+  els.collectorToggle.disabled = true;
+  setStatus(`Fetching ${code} card & booster data…`);
+  try{
+    if(!state.cache[code]){
+      const [res, iconRes] = await Promise.all([
+        fetch(`https://mtgjson.com/api/v5/${code}.json`),
+        fetch(`https://api.scryfall.com/sets/${code.toLowerCase()}`).catch(() => null)
+      ]);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      const data = json.data;
+      const cardsByUuid = {};
+      for(const c of data.cards) cardsByUuid[c.uuid] = c;
+      let setIconUrl = null;
+      if(iconRes && iconRes.ok){
+        try{
+          const iconJson = await iconRes.json();
+          setIconUrl = iconJson.icon_svg_uri || null;
+        }catch(e){ /* icon is optional, ignore failures */ }
+      }
+      state.cache[code] = {
+        cardsByUuid,
+        rawCards: data.cards,
+        boosterObjRaw: data.booster || null,
+        boosterCfg: pickBoosterConfig(data.booster),
+        setIconUrl,
+        sisterCards: []
+      };
+      state.cache[code].sisterCards = await findAndLoadSisterSets(code);
+    }
+    state.currentCode = code;
+    state.useCollector = false;
+    const entry = state.cache[code];
+    state.collectorAvailable = !!(entry.boosterObjRaw && entry.boosterObjRaw.collector);
+    els.collectorToggle.disabled = !state.collectorAvailable;
+    els.collectorToggle.classList.remove('primary');
+    els.collectorToggle.classList.remove('collector-glisten');
+    els.collectorToggle.textContent = state.collectorAvailable ? 'Collector Booster: Off' : 'Collector Booster: N/A';
+    const hasBooster = !!entry.boosterCfg;
+    const sisterNote = entry.sisterCards.length ? ` Linked sister-set cards detected — toggle Collector Booster on to include a bonus pull from it.` : '';
+    setStatus(hasBooster
+      ? `Loaded ${code}. Booster sheets found — ready to rip packs.${sisterNote}`
+      : `Loaded ${code}. No official booster sheets in MTGJSON for this set — using an approximate rarity-based slot structure instead.${sisterNote}`);
+    els.openOne.disabled = false;
+    els.openPool.disabled = false;
+    els.setInfoBtn.disabled = false;
+    if(entry.setIconUrl){
+      els.setInfoIcon.src = entry.setIconUrl;
+      els.setInfoIcon.style.display = 'block';
+      els.setInfoFallback.style.display = 'none';
+    }else{
+      els.setInfoIcon.style.display = 'none';
+      els.setInfoFallback.style.display = 'block';
+    }
+    // Keep the View Set tab following the main set selector only until the user picks
+    // their own set to browse there — after that, the two stay independent.
+    if(!state.setBrowserSelectedCode || state.setBrowserSelectedCode === code){
+      state.setBrowserSelectedCode = code;
+      const meta = state.sets.find(s => s.code === code);
+      if(meta) els.setBrowserSetSearch.value = `${meta.code} — ${meta.name}`;
+      state.setBrowserCode = null; // force a refresh next time the View Set tab is opened for this (possibly new) set
+      if(state.activeTab === 'set') loadSetBrowser(code);
+    }
+    updatePackCostNote();
+  }catch(err){
+    console.error(err);
+    setStatus(`Couldn't load ${code}: ${err.message}. This set may not have a data file, or the request was blocked.`, true);
+  }
+}
+
+function pickBoosterConfig(boosterObj){
+  if(!boosterObj) return null;
+  for(const key of BOOSTER_PREFERENCE) if(boosterObj[key]) return boosterObj[key];
+  const keys = Object.keys(boosterObj);
+  return keys.length ? boosterObj[keys[0]] : null;
+}
+
+function getActiveBoosterCfg(code){
+  const entry = state.cache[code];
+  if(state.useCollector && entry.boosterObjRaw && entry.boosterObjRaw.collector){
+    return entry.boosterObjRaw.collector;
+  }
+  return entry.boosterCfg;
+}
+
+function weightedPick(weightMap, totalWeight, exclude){
+  let entries = Object.entries(weightMap);
+  if(exclude && exclude.size){
+    const filtered = entries.filter(([k]) => !exclude.has(k));
+    if(filtered.length) entries = filtered; // if the sheet is exhausted, allow repeats rather than erroring
+  }
+  const total = exclude && exclude.size ? entries.reduce((a,[,w]) => a + w, 0) : (totalWeight || entries.reduce((a,[,w]) => a + w, 0));
+  let r = Math.random() * total;
+  for(const [key, w] of entries){
+    if(r < w) return key;
+    r -= w;
+  }
+  return entries[entries.length - 1][0];
+}
+
+function pickBoosterVariant(cfg){
+  const variants = cfg.boosters;
+  const total = cfg.boostersTotalWeight || variants.reduce((s,v)=>s+v.weight,0);
+  let r = Math.random() * total;
+  for(const v of variants){
+    if(r < v.weight) return v;
+    r -= v.weight;
+  }
+  return variants[variants.length - 1];
+}
+
+// Real packs never contain the same non-land card twice in one slot type, so every sheet
+// (aside from land, where duplicates are normal — e.g. two copies of the same basic) draws
+// without replacement within a single pack.
+function isNoDupeSheet(sheetName){
+  return !/land/i.test(sheetName);
+}
+
+// MTGJSON links related products via `parentCode` (a bonus/eternal/promo companion
+// set pointing back at its parent, or siblings sharing the same parent). When that
+// metadata ties two sets together, we pull in the sister set's card pool too, so a
+// product split across two MTGJSON set codes still opens as one physical pack.
+// This only works when MTGJSON has actually populated parentCode for the sets in
+// question — if a companion set isn't linked in their data, it won't be detected here.
+// Same parentCode relationship as findAndLoadSisterSets, but just returns the codes
+// (no fetching) — used by the View Set browser's "+" button.
+function findSisterSetCodesFor(code){
+  const meta = state.sets.find(s => s.code === code);
+  if(!meta) return [];
+  const parentCode = meta.parentCode || null;
+  const related = new Set();
+  if(parentCode){
+    related.add(parentCode);
+    for(const s of state.sets) if(s.parentCode === parentCode && s.code !== code) related.add(s.code);
+  }
+  for(const s of state.sets) if(s.parentCode === code) related.add(s.code);
+  related.delete(code);
+  return [...related];
+}
+
+async function findAndLoadSisterSets(code){
+  const thisMeta = state.sets.find(s => s.code === code);
+  if(!thisMeta) return [];
+  const parentCode = thisMeta.parentCode || null;
+  const relatedCodes = new Set();
+  if(parentCode){
+    relatedCodes.add(parentCode);
+    for(const s of state.sets){
+      if(s.parentCode === parentCode && s.code !== code) relatedCodes.add(s.code);
+    }
+  }
+  for(const s of state.sets){
+    if(s.parentCode === code) relatedCodes.add(s.code);
+  }
+  relatedCodes.delete(code);
+
+  const sisterCards = [];
+  for(const sisterCode of relatedCodes){
+    try{
+      if(!state.cache[sisterCode]){
+        const res = await fetch(`https://mtgjson.com/api/v5/${sisterCode}.json`);
+        if(!res.ok) continue;
+        const json = await res.json();
+        const data = json.data;
+        const cardsByUuid = {};
+        for(const c of data.cards) cardsByUuid[c.uuid] = c;
+        state.cache[sisterCode] = {
+          cardsByUuid,
+          rawCards: data.cards,
+          boosterObjRaw: data.booster || null,
+          boosterCfg: pickBoosterConfig(data.booster),
+          setIconUrl: null,
+          sisterCards: []
+        };
+      }
+      for(const c of state.cache[sisterCode].rawCards){
+        if(c.rarity) sisterCards.push({ card: c, setCode: sisterCode });
+      }
+    }catch(err){
+      console.warn('Could not load sister set', sisterCode, err);
+    }
+  }
+  return sisterCards;
+}
+
+function generateBooster(code){
+  const entry = state.cache[code];
+  const cfg = getActiveBoosterCfg(code);
+  let out;
+  if(cfg){
+    const variant = pickBoosterVariant(cfg);
+    out = [];
+    for(const [sheetName, count] of Object.entries(variant.contents)){
+      if(!state.settings.includeLands && /land/i.test(sheetName)) continue;
+      const sheet = cfg.sheets[sheetName];
+      if(!sheet) continue;
+      const used = isNoDupeSheet(sheetName) ? new Set() : null;
+      for(let i=0;i<count;i++){
+        const uuid = weightedPick(sheet.cards, sheet.totalWeight, used);
+        if(used) used.add(uuid);
+        const card = entry.cardsByUuid[uuid];
+        if(card) out.push(toPulledCard(card, sheet.foil, sheetName, code, state.useCollector));
+      }
+    }
+  }else{
+    out = generateFallbackBooster(entry.rawCards, code);
+  }
+  // Some products are split across a "main" MTGJSON set code and a linked sister/bonus
+  // set (e.g. an eternal-legal bonus sheet) — when MTGJSON's parentCode metadata ties
+  // two sets together, treat the sister set's cards as an extra bonus pull per pack.
+  // Companion "eternal"/bonus sets are typically a Collector Booster-exclusive mechanic
+  // in real Magic products (per the Hobbit/Hobbit Eternal example), so only pull from
+  // the sister set's pool when Collector Booster mode is on, not in ordinary packs.
+  if(state.useCollector && entry.sisterCards && entry.sisterCards.length){
+    const pick = entry.sisterCards[Math.floor(Math.random() * entry.sisterCards.length)];
+    out.push(toPulledCard(pick.card, false, 'sister', pick.setCode, state.useCollector));
+  }
+  return out;
+}
+
+function pickManyUnique(arr, n){
+  if(arr.length === 0) return [];
+  const pool = [...arr];
+  const out = [];
+  for(let i=0;i<n;i++){
+    if(pool.length === 0) pool.push(...arr); // exhausted — allow repeats rather than stopping short
+    const idx = Math.floor(Math.random() * pool.length);
+    out.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return out;
+}
+
+function generateFallbackBooster(cards, code){
+  const byRarity = { common: [], uncommon: [], rare: [], mythic: [] };
+  for(const c of cards){
+    if(byRarity[c.rarity]) byRarity[c.rarity].push(c);
+  }
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const out = [];
+  const rmPool = (byRarity.mythic.length && Math.random() < 0.125) ? byRarity.mythic
+    : (byRarity.rare.length ? byRarity.rare : byRarity.mythic);
+  if(rmPool.length) out.push(toPulledCard(pick(rmPool), false, 'rareMythic', code));
+  for(const c of pickManyUnique(byRarity.uncommon, 3)) out.push(toPulledCard(c, false, 'uncommon', code));
+  for(const c of pickManyUnique(byRarity.common, 10)) out.push(toPulledCard(c, false, 'common', code));
+  return out;
+}
+
+function typeShortFromCard(card){
+  if(card.types && card.types.length){
+    return [...(card.supertypes || []), ...card.types].join(' ');
+  }
+  if(card.type){
+    return card.type.split('—')[0].trim();
+  }
+  return 'Other';
+}
+
+const FILTER_CATEGORIES = ['Legendary Creature', 'Creature', 'Enchantment', 'Instant', 'Sorcery', 'Planeswalker'];
+
+function filterCategoryForCard(card){
+  const t = card.typeShort || '';
+  const isLegendary = /Legendary/i.test(t);
+  const isCreature = /Creature/i.test(t);
+  if(isLegendary && isCreature) return 'Legendary Creature';
+  if(isCreature) return 'Creature';
+  if(/Enchantment/i.test(t)) return 'Enchantment';
+  if(/Instant/i.test(t)) return 'Instant';
+  if(/Sorcery/i.test(t)) return 'Sorcery';
+  if(/Land/i.test(t)) return 'Land';
+  if(/Planeswalker/i.test(t)) return 'Planeswalker';
+  return t || 'Other';
+}
+
+function isLandCard(card){
+  return /Land/i.test(card.typeShort || '');
+}
+
+function matchesLandFilter(card, mode){
+  if(mode === 'only') return isLandCard(card);
+  if(mode === 'hide') return !isLandCard(card);
+  return true;
+}
+
+// Booster sheets are sometimes literally named after their special foil treatment
+// (e.g. Kaldheim's "surgefoil" sheet), so we can label the specific finish cheaply
+// at pull time without needing to wait on Scryfall data.
+function foilKindFromSheetName(sheetName, isFoilSheet, isCollectorPack){
+  if(!isFoilSheet) return null;
+  // Surge Foil and other named special treatments are Collector Booster-exclusive in
+  // real Magic products — Play Boosters only ever have standard foil/showcase finishes.
+  if(!isCollectorPack) return 'Foil';
+  const s = (sheetName || '').toLowerCase();
+  if(s.includes('surge')) return 'Surge Foil';
+  if(s.includes('etch')) return 'Etched Foil';
+  if(s.includes('galaxy')) return 'Galaxy Foil';
+  if(s.includes('confetti')) return 'Confetti Foil';
+  if(s.includes('textured')) return 'Textured Foil';
+  if(s.includes('neon')) return 'Neon Ink Foil';
+  if(s.includes('rainbow')) return 'Rainbow Foil';
+  if(s.includes('halo')) return 'Halo Foil';
+  return 'Foil';
+}
+
+function toPulledCard(card, foil, sheetName, setCode, isCollectorPack, explicitFoilKind){
+  return {
+    name: card.name,
+    number: card.number || '',
+    setCode: setCode || null,
+    rarity: card.rarity || 'common',
+    manaCost: card.manaCost || '',
+    typeLine: card.type || '',
+    typeShort: typeShortFromCard(card),
+    scryfallId: card.identifiers && card.identifiers.scryfallId,
+    foil: !!foil,
+    foilKind: explicitFoilKind || foilKindFromSheetName(sheetName, !!foil, isCollectorPack),
+    sheet: sheetName
+  };
+}
+
+// MTGJSON's booster-sheet naming doesn't reliably expose Surge Foil the same way
+// across every set — sometimes there's no distinctly-named sheet to detect at all,
+// even though the physical product does include Surge Foils. Cross-referenced against
+// TCGplayer/MTGGoldfish listings (confirmed as of this build): Surge Foil has become a
+// standard Collector Booster feature across most Universes Beyond-style sets, not just
+// the original Lord of the Rings/Doctor Who releases.
+const KNOWN_SURGE_FOIL_SET_NAME_HINTS = [
+  'tales of middle-earth', 'doctor who', 'warhammer 40,000', 'final fantasy',
+  'marvel super heroes', "marvel's spider-man", 'fallout', 'assassin\'s creed'
+];
+function setLikelyHasSurgeFoil(setName){
+  const n = (setName || '').toLowerCase();
+  return KNOWN_SURGE_FOIL_SET_NAME_HINTS.some(hint => n.includes(hint));
+}
+
+function computeSetInfo(code){
+  const entry = state.cache[code];
+  const cfg = getActiveBoosterCfg(code);
+  const rarityTotals = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0 };
+  let expectedCards = 0;
+  let foilSlots = 0;
+  let surgeFoilChance = 0; // probability a pack contains at least one Surge Foil slot
+  let variantCount = 1;
+
+  if(cfg){
+    const variants = cfg.boosters;
+    const totalW = cfg.boostersTotalWeight || variants.reduce((s,v)=>s+v.weight,0);
+    variantCount = variants.length;
+
+    for(const variant of variants){
+      const p = variant.weight / totalW; // probability this variant is chosen
+      let variantCardCount = 0;
+      for(const [sheetName, count] of Object.entries(variant.contents)){
+        if(!state.settings.includeLands && /land/i.test(sheetName)) continue;
+        variantCardCount += count;
+        const sheet = cfg.sheets[sheetName];
+        if(!sheet) continue;
+        if(sheet.foil) foilSlots += count * p;
+        if(sheet.foil && /surge/i.test(sheetName)) surgeFoilChance += count * p;
+        const sheetTotalW = sheet.totalWeight || Object.values(sheet.cards).reduce((a,b)=>a+b,0);
+        // rarity distribution within this sheet, by weight
+        const sheetRarityW = {};
+        for(const [uuid, w] of Object.entries(sheet.cards)){
+          const card = entry.cardsByUuid[uuid];
+          const r = (card && rarityTotals[card.rarity] !== undefined) ? card.rarity : 'other';
+          sheetRarityW[r] = (sheetRarityW[r] || 0) + w;
+        }
+        for(const [r, w] of Object.entries(sheetRarityW)){
+          const share = sheetTotalW ? (w / sheetTotalW) : 0;
+          rarityTotals[r] += count * share * p;
+        }
+      }
+      expectedCards += variantCardCount * p;
+    }
+  }else{
+    // fallback structure, matches generateFallbackBooster
+    expectedCards = 14;
+    rarityTotals.common = 10;
+    rarityTotals.uncommon = 3;
+    rarityTotals.rare = 0.875;
+    rarityTotals.mythic = 0.125;
+  }
+
+  return { hasRealData: !!cfg, variantCount, expectedCards, rarityTotals, foilSlots, surgeFoilChance };
+}
+
+function renderSetInfo(code){
+  const info = computeSetInfo(code);
+  const setMeta = state.sets.find(s => s.code === code) || { name: code };
+  const round = n => Math.round(n * 100) / 100;
+  const rows = ['common','uncommon','rare','mythic','other']
+    .filter(r => info.rarityTotals[r] > 0.005)
+    .map(r => `<tr><td class="rarity-name" style="color:${RARITY_COLOR[r]}">${r}</td><td>${round(info.rarityTotals[r])}</td></tr>`)
+    .join('');
+
+  let releaseLabel = 'Unknown';
+  if(setMeta.releaseDate){
+    const d = new Date(setMeta.releaseDate + 'T00:00:00');
+    releaseLabel = isNaN(d) ? setMeta.releaseDate : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  const setTypeLabel = setMeta.type ? setMeta.type.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) : 'Unknown';
+  const totalCards = setMeta.totalSetSize || setMeta.baseSetSize;
+
+  const metaItems = [
+    ['Date of Release', releaseLabel],
+    ['Set Type', setTypeLabel]
+  ];
+  if(totalCards) metaItems.push(['Total Cards', totalCards]);
+  if(setMeta.block) metaItems.push(['Block', setMeta.block]);
+  if(setMeta.isFoilOnly) metaItems.push(['Foil Only', 'Yes']);
+  if(setMeta.isOnlineOnly) metaItems.push(['Online Only', 'Yes']);
+
+  const metaHtml = metaItems
+    .map(([label, val]) => `<div><span class="meta-label">${escapeHtml(label)}</span><span class="meta-value">${escapeHtml(String(val))}</span></div>`)
+    .join('');
+
+  els.setInfoBody.innerHTML = `
+    <p class="info-head">${escapeHtml(setMeta.name)} (${escapeHtml(code)})${state.useCollector ? ' — Collector Booster' : ''}</p>
+    <div class="info-meta">${metaHtml}</div>
+    <p class="info-sub">${info.hasRealData
+      ? `Computed from MTGJSON's actual print-sheet weights${info.variantCount > 1 ? ` across ${info.variantCount} possible pack layouts for this set` : ''}.`
+      : `MTGJSON has no booster sheet data for this set — figures below are the app's generic fallback structure, not real print data.`}</p>
+    <div class="info-grid">
+      <div>
+        <table class="rarity-table">
+          <thead><tr><th>Rarity</th><th>Expected per pack</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td style="font-weight:700;">Total</td><td style="font-weight:700;">${round(info.expectedCards)}</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+    ${info.foilSlots > 0.005 ? `<p class="variant-note">Includes ~${round(info.foilSlots)} traditional-foil slot(s) per pack, drawn from across rarities — those foil pulls are also folded into the rarity counts above.</p>` : ''}
+    ${state.useCollector && info.surgeFoilChance > 0.0001 ? `<p class="variant-note">Surge Foil chance: ~${round(info.surgeFoilChance * 100)}% per pack (Collector Booster only).</p>` : ''}
+    ${state.useCollector && info.surgeFoilChance <= 0.0001 && info.hasRealData && setLikelyHasSurgeFoil(setMeta.name) ? `<p class="variant-note">This set's Collector Boosters are known to include Surge Foils (per TCGplayer/MTGGoldfish listings), but MTGJSON's data doesn't expose a distinct Surge Foil sheet for it, so an exact per-pack rate can't be computed — expect Surge Foil pulls regardless.</p>` : ''}
+    ${state.useCollector && info.surgeFoilChance <= 0.0001 && info.hasRealData && !setLikelyHasSurgeFoil(setMeta.name) ? `<p class="variant-note">No Surge Foil sheet detected in MTGJSON's data for this set's Collector Booster.</p>` : ''}
+  `;
+}
+
+// The single source of truth for "what specific foil is this" — always prefers live
+// Scryfall data (frame_effects/promo_types) when we have it cached, since that's more
+// reliable than guessing from a booster sheet's name. Keeps the badge/tag consistent
+// across Just Opened, Full Pool, Deck Builder, and View Set, since they all render
+// through this same lookup rather than each keeping their own static guess.
+function resolveFoilKind(card){
+  if(!card || !card.foil) return null;
+  const sc = card.scryfallId && state.scryfallCache[card.scryfallId];
+  if(sc){
+    return foilFinishLabel(sc) || 'Foil';
+  }
+  return card.foilKind || 'Foil';
+}
+
+function foilBadgeAbbrev(kind){
+  switch(kind){
+    case 'Surge Foil': return 'SFOIL';
+    case 'Etched Foil': return 'EFOIL';
+    case 'Galaxy Foil': return 'GFOIL';
+    case 'Confetti Foil': return 'CFOIL';
+    case 'Textured Foil': return 'TFOIL';
+    case 'Neon Ink Foil': return 'NFOIL';
+    case 'Rainbow Foil': return 'RFOIL';
+    case 'Halo Foil': return 'HFOIL';
+    default: return 'FOIL';
+  }
+}
+
+function cardEl(card, navList, navIdx, qty, deckControl){
+  const div = document.createElement('div');
+  div.className = 'mtg-card' + (card.rarity === 'mythic' ? ' mythic-border' : '') + (state.suppressCardAnim ? ' no-anim' : '');
+  const color = RARITY_COLOR[card.rarity] || RARITY_COLOR.common;
+  div.style.setProperty('--rarity-color', color);
+  const cardKey = card.name + '|' + (card.foil ? 'foil' : 'normal');
+  div.dataset.cardKey = cardKey;
+  div.dataset.deckControl = deckControl ? '1' : '0';
+  state.cardObjectsByKey.set(cardKey, card);
+  const art = document.createElement('div');
+  art.className = 'art';
+  // Prefer the direct UUID-based image lookup; if MTGJSON hasn't got a scryfallId for this
+  // printing yet (happens for very recently-added sets), fall back to Scryfall's named
+  // set-code + collector-number lookup instead, which needs no ID at all.
+  const imgSrc = card.scryfallId
+    ? `https://api.scryfall.com/cards/${card.scryfallId}?format=image&version=normal`
+    : (card.setCode && card.number ? `https://api.scryfall.com/cards/${card.setCode.toLowerCase()}/${encodeURIComponent(card.number)}?format=image&version=normal` : null);
+  if(imgSrc){
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.alt = card.name;
+    img.src = imgSrc;
+    img.onerror = () => { art.innerHTML = `<div class="fallback">${escapeHtml(card.name)}</div>`; };
+    art.appendChild(img);
+  }else{
+    art.innerHTML = `<div class="fallback">${escapeHtml(card.name)}</div>`;
+  }
+  if(card.foil){
+    const kind = resolveFoilKind(card);
+    const badge = document.createElement('div');
+    badge.className = 'foil-badge';
+    badge.textContent = foilBadgeAbbrev(kind);
+    badge.title = kind || 'Foil';
+    art.appendChild(badge);
+  }
+  if(qty && qty > 1){
+    const qtyBadge = document.createElement('div');
+    qtyBadge.className = 'qty-badge';
+    qtyBadge.textContent = '×' + qty;
+    art.appendChild(qtyBadge);
+  }
+  if(deckControl) appendDeckControls(art, card);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = `
+    <div class="name">${escapeHtml(card.name)}</div>
+    <div class="type-line">${escapeHtml(card.typeShort)}</div>
+    <div class="sub"><span class="rarity">${escapeHtml(card.rarity)}</span></div>
+  `;
+  div.appendChild(art);
+  div.appendChild(meta);
+  div.addEventListener('click', () => openCardModal(card, navList, navIdx));
+  return div;
+}
+
+// Builds (or rebuilds) just the deck tick badge + add/remove buttons for a card,
+// appended into the given .art container. Split out from cardEl so a deck add/remove
+// can refresh only this small overlay in place, without tearing down and recreating
+// the whole card tile (which was restarting the mythic border animation every click).
+function appendDeckControls(art, card){
+  const dQty = deckQtyFor(card);
+  const tick = document.createElement('div');
+  tick.className = 'deck-tick' + (dQty > 0 ? ' show' : '');
+  tick.textContent = dQty > 0 ? `✓${dQty > 1 ? ' ×' + dQty : ''}` : '';
+  art.appendChild(tick);
+
+  // Plus and minus sit together so you can add multiple copies of the same card
+  // (click + repeatedly) rather than the button flipping to remove-only after one.
+  const ctrlWrap = document.createElement('div');
+  ctrlWrap.className = 'deck-ctrl-wrap';
+  if(dQty > 0){
+    const minusBtn = document.createElement('button');
+    minusBtn.type = 'button';
+    minusBtn.className = 'deck-ctrl-btn remove';
+    minusBtn.textContent = '−';
+    minusBtn.title = 'Remove one from deck';
+    minusBtn.addEventListener('click', (e) => { e.stopPropagation(); deckRemoveOne(card); });
+    ctrlWrap.appendChild(minusBtn);
+  }
+  const plusBtn = document.createElement('button');
+  plusBtn.type = 'button';
+  plusBtn.className = 'deck-ctrl-btn add';
+  plusBtn.textContent = '+';
+  if(isBasicLandCard(card)){
+    plusBtn.title = 'Add another to deck';
+  }else{
+    const owned = poolQtyFor(card);
+    if(dQty >= owned){
+      plusBtn.disabled = true;
+      plusBtn.title = `Only ${owned} opened — none left to add`;
+    }else{
+      plusBtn.title = 'Add to deck';
+    }
+  }
+  plusBtn.addEventListener('click', (e) => { e.stopPropagation(); deckAddOne(card); });
+  ctrlWrap.appendChild(plusBtn);
+  art.appendChild(ctrlWrap);
+}
+
+// Updates the deck tick/buttons for every on-screen tile matching this card, in place,
+// instead of re-rendering the whole grid — preserves running animations (mythic border,
+// etc.) on every OTHER tile that didn't change.
+function refreshDeckOverlaysForKey(cardKey){
+  const card = state.cardObjectsByKey.get(cardKey);
+  if(!card) return;
+  document.querySelectorAll(`.mtg-card[data-deck-control="1"]`).forEach(el => {
+    if(el.dataset.cardKey !== cardKey) return;
+    const art = el.querySelector('.art');
+    if(!art) return;
+    const oldTick = art.querySelector('.deck-tick');
+    if(oldTick) oldTick.remove();
+    const oldWrap = art.querySelector('.deck-ctrl-wrap');
+    if(oldWrap) oldWrap.remove();
+    appendDeckControls(art, card);
+  });
+}
+
+
+const PRICE_SHAKE_THRESHOLD_USD = 35;
+
+function getCardPriceUsd(card){
+  const sc = card.scryfallId && state.scryfallCache[card.scryfallId];
+  if(!sc || !sc.prices) return 0;
+  const usd = card.foil ? (sc.prices.usd_foil || sc.prices.usd) : sc.prices.usd;
+  return usd ? parseFloat(usd) : 0;
+}
+
+function sortCards(arr, sortKey){
+  const sorted = [...arr];
+  if(sortKey === 'number-asc' || sortKey === 'number-desc' || sortKey === 'number'){
+    const dir = sortKey === 'number-desc' ? -1 : 1;
+    sorted.sort((a,b) => {
+      const na = parseFloat(a.number), nb = parseFloat(b.number);
+      let cmp;
+      if(!isNaN(na) && !isNaN(nb) && na !== nb) cmp = na - nb;
+      else cmp = String(a.number || '').localeCompare(String(b.number || ''), undefined, { numeric: true });
+      return cmp * dir;
+    });
+  }else if(sortKey === 'price-desc'){
+    sorted.sort((a,b) => getCardPriceUsd(b) - getCardPriceUsd(a) || a.name.localeCompare(b.name));
+  }else if(sortKey === 'price-asc'){
+    sorted.sort((a,b) => getCardPriceUsd(a) - getCardPriceUsd(b) || a.name.localeCompare(b.name));
+  }else{
+    sorted.sort((a,b) => a.name.localeCompare(b.name));
+  }
+  return sorted;
+}
+
+function triggerCardReactions(el, card){
+  const sc = card.scryfallId && state.scryfallCache[card.scryfallId];
+  if(sc && sc.prices){
+    const priceUsd = card.foil ? (sc.prices.usd_foil || sc.prices.usd) : sc.prices.usd;
+    if(priceUsd && parseFloat(priceUsd) > PRICE_SHAKE_THRESHOLD_USD){
+      el.classList.add('reaction-shake');
+      playReactionSound('value');
+      setTimeout(() => el.classList.remove('reaction-shake'), 700);
+    }
+  }
+  if(card.rarity === 'mythic'){
+    el.classList.add('reaction-glisten');
+    playReactionSound('mythic');
+    setTimeout(() => el.classList.remove('reaction-glisten'), 2500);
+  }
+}
+
+function renderStackedGrid(container, cards, delayFn, reactions){
+  container.innerHTML = '';
+  const grouped = new Map();
+  for(const c of cards){
+    const key = c.name + '|' + (c.foil ? 'foil' : 'normal');
+    if(!grouped.has(key)) grouped.set(key, { card: c, qty: 0 });
+    grouped.get(key).qty++;
+  }
+  const uniqueList = [...grouped.values()];
+  const navList = uniqueList.map(u => u.card);
+  uniqueList.forEach(({ card, qty }, i) => {
+    card.__stackQty = qty;
+    const el = cardEl(card, navList, i, qty);
+    const delay = delayFn ? delayFn(i) : 0;
+    if(delayFn) el.style.animationDelay = delay + 's';
+    container.appendChild(el);
+    if(reactions){
+      setTimeout(() => triggerCardReactions(el, card), delay * 1000 + 350);
+    }
+  });
+}
+
+function escapeHtml(str){
+  return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function manaSymbolsToHtml(text){
+  return escapeHtml(text).replace(/\{([^}]+)\}/g, (match, sym) => {
+    const code = sym.replace(/\//g, '').toUpperCase();
+    return `<img class="mana-symbol" src="https://svgs.scryfall.io/card-symbols/${encodeURIComponent(code)}.svg" alt="{${sym}}" title="{${sym}}">`;
+  });
+}
+
+function renderReveal(cards, label){
+  state.hasRevealed = true;
+  state.lastRevealCards = cards;
+  els.revealEmptyMsg.style.display = 'none';
+  els.revealTitle.textContent = label;
+  els.revealGrid.style.display = '';
+  renderRevealGrid(true);
+  renderRevealStats(cards);
+  setActiveTab('opened');
+  els.revealSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderRevealGrid(withReactions){
+  const filtered = state.lastRevealCards.filter(c => matchesLandFilter(c, state.revealLandFilter));
+  const sorted = sortCards(filtered, state.revealSort);
+  renderStackedGrid(els.revealGrid, sorted, withReactions ? (i => i * 0.03) : null, !!withReactions);
+}
+
+async function renderRevealStats(cards){
+  els.revealStatsPanel.style.display = 'block';
+  const counts = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0, foil: 0 };
+  for(const c of cards){
+    if(counts[c.rarity] !== undefined) counts[c.rarity]++; else counts.other++;
+    if(c.foil) counts.foil++;
+  }
+  const renderStats = (valueLabel) => {
+    els.revealStats.innerHTML = `
+      <div class="stat"><div class="num">${cards.length}</div><div class="label">Cards opened</div></div>
+      <div class="stat common"><div class="num">${counts.common}</div><div class="label">Common</div></div>
+      <div class="stat uncommon"><div class="num">${counts.uncommon}</div><div class="label">Uncommon</div></div>
+      <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
+      <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
+      <div class="stat"><div class="num">${counts.foil}</div><div class="label">Foil</div></div>
+      <div class="stat value"><div class="num">${valueLabel}</div><div class="label">Value opened (approx.)</div></div>
+    `;
+  };
+  renderStats('…');
+
+  if(state.settings.currency === 'AUD') await ensureFxRate();
+  let total = 0;
+  for(const c of cards){
+    if(!c.scryfallId) continue;
+    const sc = state.scryfallCache[c.scryfallId];
+    if(!sc || !sc.prices) continue;
+    const p = sc.prices;
+    let val = null;
+    if(state.settings.currency === 'EUR'){
+      val = c.foil ? (p.eur_foil || p.eur) : p.eur;
+    }else if(state.settings.currency === 'AUD'){
+      const usdVal = c.foil ? (p.usd_foil || p.usd) : p.usd;
+      if(usdVal && state.fxRate) val = parseFloat(usdVal) * state.fxRate;
+    }else{
+      val = c.foil ? (p.usd_foil || p.usd) : p.usd;
+    }
+    if(val) total += parseFloat(val);
+  }
+  renderStats(formatCurrency(total, state.settings.currency));
+}
+
+function setActiveTab(tab){
+  state.activeTab = tab;
+  els.tabOpenedBtn.classList.toggle('active', tab === 'opened');
+  els.tabPoolBtn.classList.toggle('active', tab === 'pool');
+  els.tabSetBtn.classList.toggle('active', tab === 'set');
+  els.tabDeckBtn.classList.toggle('active', tab === 'deck');
+  els.revealSection.classList.toggle('active', tab === 'opened');
+  els.poolTabContent.classList.toggle('active', tab === 'pool');
+  els.setTabContent.classList.toggle('active', tab === 'set');
+  els.deckTabContent.classList.toggle('active', tab === 'deck');
+  if(tab === 'set'){
+    // Default to whatever's loaded for pack-opening only the first time; once the user
+    // picks their own set to browse here, this tab stops following the main selector.
+    if(!state.setBrowserSelectedCode && state.currentCode){
+      state.setBrowserSelectedCode = state.currentCode;
+      const meta = state.sets.find(s => s.code === state.currentCode);
+      if(meta) els.setBrowserSetSearch.value = `${meta.code} — ${meta.name}`;
+    }
+    if(state.setBrowserSelectedCode) loadSetBrowser(state.setBrowserSelectedCode);
+  }
+  if(tab === 'deck') renderDeckTab();
+  updateEmptyStates();
+}
+
+function updateEmptyStates(){
+  els.revealEmptyMsg.style.display = state.hasRevealed ? 'none' : 'block';
+  els.revealGrid.style.display = state.hasRevealed ? '' : 'none';
+  els.goToPoolBtn.style.display = state.hasRevealed ? 'inline-block' : 'none';
+  els.poolEmptyMsg.style.display = state.pool.length > 0 ? 'none' : 'block';
+  els.backToOpenedBtn.style.display = (state.pool.length > 0 && state.hasRevealed) ? 'inline-block' : 'none';
+}
+
+function renderPool(){
+  updateEmptyStates();
+  if(state.pool.length === 0){
+    els.poolPanel.style.display = 'none';
+    els.poolSection.style.display = 'none';
+    return;
+  }
+  els.poolPanel.style.display = 'block';
+  els.poolSection.style.display = 'block';
+  const counts = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0, foil: 0 };
+  for(const c of state.pool){
+    if(counts[c.rarity] !== undefined) counts[c.rarity]++; else counts.other++;
+    if(c.foil) counts.foil++;
+  }
+  els.poolStats.innerHTML = `
+    <div class="stat"><div class="num">${state.pool.length}</div><div class="label">Total cards</div></div>
+    <div class="stat common"><div class="num">${counts.common}</div><div class="label">Common</div></div>
+    <div class="stat uncommon"><div class="num">${counts.uncommon}</div><div class="label">Uncommon</div></div>
+    <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
+    <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
+    <div class="stat"><div class="num">${counts.foil}</div><div class="label">Foil</div></div>
+    <div class="stat value"><div class="num" id="poolValueNum">${state.poolValue === null ? '…' : formatCurrency(state.poolValue, state.settings.currency)}</div><div class="label">Total value (approx.)</div></div>
+  `;
+
+  const term = state.poolSearchTerm.trim().toLowerCase();
+  const filtered = state.pool.filter(c =>
+    (!term || c.name.toLowerCase().includes(term)) &&
+    (state.poolTypeFilters.size === 0 || state.poolTypeFilters.has(filterCategoryForCard(c))) &&
+    matchesLandFilter(c, state.poolLandFilter)
+  );
+
+  els.poolTypeFilters.innerHTML = (() => {
+    const extraCats = [...new Set(state.pool.map(c => filterCategoryForCard(c)))]
+      .filter(cat => !FILTER_CATEGORIES.includes(cat))
+      .sort();
+    const allCats = [...FILTER_CATEGORIES, ...extraCats];
+    return allCats.map(cat => {
+      const checked = state.poolTypeFilters.has(cat);
+      return `<label class="type-chip${checked ? ' checked' : ''}"><input type="checkbox" data-type="${escapeHtml(cat)}" ${checked ? 'checked' : ''}>${escapeHtml(cat)}</label>`;
+    }).join('');
+  })();
+
+  const order = ['mythic', 'rare', 'uncommon', 'common', 'other'];
+  els.poolByRarity.innerHTML = '';
+
+  // Build one global stacked/nav list across ALL visible rarities so arrow-key
+  // navigation can move seamlessly from (say) the last mythic into the first rare.
+  const globalNavList = [];
+  const sections = [];
+  for(const rarity of order){
+    const cardsForRarity = sortCards(
+      filtered.filter(c => (counts[c.rarity] !== undefined ? c.rarity : 'other') === rarity),
+      state.poolSort
+    );
+    if(cardsForRarity.length === 0) continue;
+    const grouped = new Map();
+    for(const c of cardsForRarity){
+      const key = c.name + '|' + (c.foil ? 'foil' : 'normal');
+      if(!grouped.has(key)) grouped.set(key, { card: c, qty: 0 });
+      grouped.get(key).qty++;
+    }
+    const entries = [...grouped.values()];
+    const startIdx = globalNavList.length;
+    entries.forEach(e => { e.card.__stackQty = e.qty; globalNavList.push(e.card); });
+    sections.push({ rarity, instanceCount: cardsForRarity.length, entries, startIdx });
+  }
+
+  for(const { rarity, instanceCount, entries, startIdx } of sections){
+    const collapsed = state.collapsedRarities.has(rarity);
+    const section = document.createElement('div');
+    section.className = 'rarity-section';
+    const head = document.createElement('p');
+    head.className = 'rarity-subhead';
+    head.style.color = RARITY_COLOR[rarity] || RARITY_COLOR.common;
+    head.innerHTML = `<span class="arrow">${collapsed ? '▸' : '▾'}</span>${rarity}<span class="count">(${instanceCount})</span>`;
+    head.addEventListener('click', () => {
+      if(state.collapsedRarities.has(rarity)) state.collapsedRarities.delete(rarity);
+      else state.collapsedRarities.add(rarity);
+      renderPool();
+    });
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+    grid.style.display = collapsed ? 'none' : '';
+    entries.forEach(({ card, qty }, j) => {
+      const globalIdx = startIdx + j;
+      const el = cardEl(card, globalNavList, globalIdx, qty, true);
+      el.style.animationDelay = Math.min(j * 0.0067, 0.2) + 's';
+      grid.appendChild(el);
+    });
+    section.appendChild(head);
+    section.appendChild(grid);
+    els.poolByRarity.appendChild(section);
+  }
+  if(sections.length === 0){
+    els.poolByRarity.innerHTML = `<p class="info-sub">No cards in your pool match the current search/filter.</p>`;
+  }
+}
+
+function toBrowseCard(card, setCode){
+  return {
+    name: card.name,
+    number: card.number || '',
+    setCode: setCode || null,
+    rarity: card.rarity || 'common',
+    manaCost: card.manaCost || '',
+    typeLine: card.type || '',
+    typeShort: typeShortFromCard(card),
+    scryfallId: card.identifiers && card.identifiers.scryfallId,
+    foil: false, // resolved after Scryfall data loads — see loadSetBrowser
+    foilKind: null
+  };
+}
+
+function updateSetBrowserAddSisterBtn(){
+  const pending = state.setBrowserSisterCodes.filter(c => !state.setBrowserMergedCodes.includes(c));
+  els.setBrowserAddSisterBtn.disabled = pending.length === 0;
+  els.setBrowserAddSisterBtn.title = pending.length
+    ? `Add linked set(s): ${pending.join(', ')}`
+    : 'No linked sister set to add';
+  if(state.setBrowserMergedCodes.length > 1){
+    els.setBrowserMergedNote.style.display = 'block';
+    els.setBrowserMergedNote.textContent = `Showing combined card list from: ${state.setBrowserMergedCodes.join(' + ')}`;
+  }else{
+    els.setBrowserMergedNote.style.display = 'none';
+  }
+}
+
+// Pulls in any linked sister/companion set's cards (e.g. Hobbit Eternal alongside The
+// Hobbit) so both can be browsed together in one combined list.
+async function mergeSisterSetsIntoBrowser(){
+  const toAdd = state.setBrowserSisterCodes.filter(c => !state.setBrowserMergedCodes.includes(c));
+  if(toAdd.length === 0) return;
+  els.setBrowserAddSisterBtn.disabled = true;
+  setStatus(`Loading linked set(s): ${toAdd.join(', ')}…`);
+
+  try{
+    for(const sisterCode of toAdd){
+      if(!state.cache[sisterCode]){
+        const res = await fetch(`https://mtgjson.com/api/v5/${sisterCode}.json`);
+        if(!res.ok) continue;
+        const json = await res.json();
+        const data = json.data;
+        const cardsByUuid = {};
+        for(const c of data.cards) cardsByUuid[c.uuid] = c;
+        state.cache[sisterCode] = {
+          cardsByUuid,
+          rawCards: data.cards,
+          boosterObjRaw: data.booster || null,
+          boosterCfg: pickBoosterConfig(data.booster),
+          setIconUrl: null,
+          sisterCards: []
+        };
+      }
+      const entry = state.cache[sisterCode];
+      const seenNumbers = new Set();
+      const rawCards = entry.rawCards.filter(c => {
+        if(!c.rarity) return false;
+        if(c.number){
+          if(seenNumbers.has(c.number)) return false;
+          seenNumbers.add(c.number);
+        }
+        return true;
+      });
+      state.setBrowserCards.push(...rawCards.map(c => toBrowseCard(c, sisterCode)));
+      state.setBrowserMergedCodes.push(sisterCode);
+    }
+  }catch(err){
+    console.error('Sister set merge failed', err);
+    setStatus(`Couldn't load one of the linked sets: ${err.message}`, true);
+    updateSetBrowserAddSisterBtn();
+    return;
+  }
+
+  await fetchMissingScryfallData(state.setBrowserCards.filter(c => c.scryfallId).map(c => c.scryfallId));
+  applyFoilDetectionToBrowseCards(state.setBrowserCards);
+
+  setStatus(`Merged ${toAdd.join(', ')} into the browsed card list.`);
+  updateSetBrowserAddSisterBtn();
+  try{
+    renderSetBrowser(state.setBrowserSelectedCode);
+  }catch(err){
+    console.error('Rendering the merged card list failed', err);
+    setStatus(`Merged the set data, but rendering it failed: ${err.message}. Try changing the sort or search to refresh.`, true);
+  }
+}
+
+// Determine actual foil-only status (and specific finish, e.g. Surge Foil) from
+// Scryfall's own finishes/frame_effects data. Includes a sanity check: if MTGJSON's
+// scryfallId for a card doesn't actually point to a card from the expected set (a real
+// data-quality issue seen on some newly-added companion sets, e.g. Hobbit Eternal),
+// Scryfall's `set` code on the returned card won't match — in that case we skip
+// trusting that data rather than let a mismatched card's foil info bleed onto the
+// wrong card.
+function applyFoilDetectionToBrowseCards(cards){
+  for(const c of cards){
+    const sc = c.scryfallId && state.scryfallCache[c.scryfallId];
+    if(!sc || !Array.isArray(sc.finishes)) continue;
+    if(c.setCode && sc.set && sc.set.toLowerCase() !== c.setCode.toLowerCase()) continue;
+    c.foil = sc.finishes.includes('foil') && !sc.finishes.includes('nonfoil');
+    c.foilKind = c.foil ? (foilFinishLabel(sc) || 'Foil') : null;
+  }
+}
+
+async function loadSetBrowser(code){
+  if(state.setBrowserCode === code) return; // already loaded/loading for this set
+  state.setBrowserCode = code;
+
+  els.setBrowserPanel.style.display = 'none';
+  els.setBrowserHeader.style.display = 'none';
+  els.setBrowserByRarity.innerHTML = '';
+  els.setBrowserLoading.style.display = 'block';
+  els.setBrowserLoading.textContent = `Loading ${code}'s full card list…`;
+
+  // The set being browsed here might never have been loaded for pack-opening (e.g. a
+  // standalone companion set), so fetch it directly if it isn't already cached.
+  if(!state.cache[code]){
+    try{
+      const res = await fetch(`https://mtgjson.com/api/v5/${code}.json`);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      const data = json.data;
+      const cardsByUuid = {};
+      for(const c of data.cards) cardsByUuid[c.uuid] = c;
+      state.cache[code] = {
+        cardsByUuid,
+        rawCards: data.cards,
+        boosterObjRaw: data.booster || null,
+        boosterCfg: pickBoosterConfig(data.booster),
+        setIconUrl: null,
+        sisterCards: []
+      };
+    }catch(err){
+      console.error(err);
+      els.setBrowserLoading.textContent = `Couldn't load ${code}: ${err.message}.`;
+      state.setBrowserCode = null;
+      return;
+    }
+  }
+  const entry = state.cache[code];
+  if(!entry) return;
+
+  // Double-faced / split / adventure cards can appear as two separate entries in
+  // MTGJSON (one per face) sharing the same collector number — keep only the first
+  // (front) face so each physical card shows up once.
+  const seenNumbers = new Set();
+  const rawCards = entry.rawCards.filter(c => {
+    if(!c.rarity) return false;
+    if(c.number){
+      if(seenNumbers.has(c.number)) return false;
+      seenNumbers.add(c.number);
+    }
+    return true;
+  });
+  const cards = rawCards.map(c => toBrowseCard(c, code));
+  state.setBrowserCards = cards;
+  state.setBrowserMergedCodes = [code];
+  state.setBrowserSisterCodes = findSisterSetCodesFor(code);
+  updateSetBrowserAddSisterBtn();
+  state.setSearchTerm = '';
+  state.setTypeFilters.clear();
+  if(els.setBrowserSearch) els.setBrowserSearch.value = '';
+
+  await fetchMissingScryfallData(cards.filter(c => c.scryfallId).map(c => c.scryfallId));
+  applyFoilDetectionToBrowseCards(cards);
+  if(state.settings.currency === 'AUD') await ensureFxRate();
+
+  if(state.setBrowserCode !== code) return; // set changed again while we were loading
+  renderSetBrowser(code);
+}
+
+function safeRenderSetBrowser(code){
+  try{
+    renderSetBrowser(code);
+  }catch(err){
+    console.error('renderSetBrowser failed', err);
+    setStatus(`Something went wrong updating the card list: ${err.message}`, true);
+  }
+}
+
+function renderSetBrowser(code){
+  const cards = state.setBrowserCards || [];
+  els.setBrowserLoading.style.display = 'none';
+  els.setBrowserPanel.style.display = 'block';
+  els.setBrowserHeader.style.display = 'flex';
+
+  const counts = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0 };
+  let total = 0;
+  for(const c of cards){
+    if(counts[c.rarity] !== undefined) counts[c.rarity]++; else counts.other++;
+    const sc = c.scryfallId && state.scryfallCache[c.scryfallId];
+    if(sc && sc.prices){
+      const usd = sc.prices.usd || sc.prices.usd_foil;
+      if(usd){
+        let val = parseFloat(usd);
+        if(state.settings.currency === 'AUD' && state.fxRate) val *= state.fxRate;
+        total += val;
+      }
+    }
+  }
+
+  els.setBrowserStats.innerHTML = `
+    <div class="stat"><div class="num">${cards.length}</div><div class="label">Total cards</div></div>
+    <div class="stat common"><div class="num">${counts.common}</div><div class="label">Common</div></div>
+    <div class="stat uncommon"><div class="num">${counts.uncommon}</div><div class="label">Uncommon</div></div>
+    <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
+    <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
+    <div class="stat value"><div class="num">${formatCurrency(total, state.settings.currency)}</div><div class="label">Set value (approx.)</div></div>
+  `;
+
+  const term = state.setSearchTerm.trim().toLowerCase();
+  const filtered = cards.filter(c =>
+    (!term || c.name.toLowerCase().includes(term)) &&
+    (state.setTypeFilters.size === 0 || state.setTypeFilters.has(filterCategoryForCard(c))) &&
+    matchesLandFilter(c, state.setLandFilter)
+  );
+
+  els.setBrowserTypeFilters.innerHTML = (() => {
+    const extraCats = [...new Set(cards.map(c => filterCategoryForCard(c)))]
+      .filter(cat => !FILTER_CATEGORIES.includes(cat))
+      .sort();
+    const allCats = [...FILTER_CATEGORIES, ...extraCats];
+    return allCats.map(cat => {
+      const checked = state.setTypeFilters.has(cat);
+      return `<label class="type-chip${checked ? ' checked' : ''}"><input type="checkbox" data-type="${escapeHtml(cat)}" ${checked ? 'checked' : ''}>${escapeHtml(cat)}</label>`;
+    }).join('');
+  })();
+
+  const order = ['mythic', 'rare', 'uncommon', 'common', 'other'];
+  const globalNavList = [];
+  const sections = [];
+  for(const rarity of order){
+    const cardsForRarity = sortCards(
+      filtered.filter(c => (counts[c.rarity] !== undefined ? c.rarity : 'other') === rarity),
+      state.setSort
+    );
+    if(cardsForRarity.length === 0) continue;
+    const startIdx = globalNavList.length;
+    globalNavList.push(...cardsForRarity);
+    sections.push({ rarity, cardsForRarity, startIdx });
+  }
+
+  els.setBrowserByRarity.innerHTML = '';
+  for(const { rarity, cardsForRarity, startIdx } of sections){
+    const collapsed = state.collapsedSetRarities.has(rarity);
+    const section = document.createElement('div');
+    section.className = 'rarity-section';
+    const head = document.createElement('p');
+    head.className = 'rarity-subhead';
+    head.style.color = RARITY_COLOR[rarity] || RARITY_COLOR.common;
+    head.innerHTML = `<span class="arrow">${collapsed ? '▸' : '▾'}</span>${rarity}<span class="count">(${cardsForRarity.length})</span>`;
+    head.addEventListener('click', () => {
+      if(state.collapsedSetRarities.has(rarity)) state.collapsedSetRarities.delete(rarity);
+      else state.collapsedSetRarities.add(rarity);
+      renderSetBrowser(code);
+    });
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+    grid.style.display = collapsed ? 'none' : '';
+    cardsForRarity.forEach((card, j) => {
+      const globalIdx = startIdx + j;
+      const el = cardEl(card, globalNavList, globalIdx);
+      el.style.animationDelay = Math.min(j * 0.0067, 0.2) + 's';
+      grid.appendChild(el);
+    });
+    section.appendChild(head);
+    section.appendChild(grid);
+    els.setBrowserByRarity.appendChild(section);
+  }
+  if(sections.length === 0){
+    els.setBrowserByRarity.innerHTML = `<p class="info-sub">No cards in this set match the current search/filter.</p>`;
+  }
+}
+
+function deckQtyFor(card){
+  return state.deck.filter(d => d.name === card.name && !!d.foil === !!card.foil).length;
+}
+
+function poolQtyFor(card){
+  return state.pool.filter(p => p.name === card.name && !!p.foil === !!card.foil).length;
+}
+
+function isBasicLandCard(card){
+  const t = card.typeShort || '';
+  return /Basic/i.test(t) && /Land/i.test(t);
+}
+
+function deckAddOne(card){
+  if(state.deck.length >= state.settings.deckSize){
+    setStatus(`Deck is already full (${state.settings.deckSize}/${state.settings.deckSize}).`, true);
+    return;
+  }
+  const before = deckQtyFor(card);
+  // Basic lands aren't capped by pool ownership — decks routinely need more copies
+  // than whatever your packs happened to open, so hovering a basic's tile in Deck
+  // Builder lets you keep clicking + freely.
+  if(!isBasicLandCard(card)){
+    const owned = poolQtyFor(card);
+    if(before >= owned){
+      setStatus(`You've only opened ${owned} cop${owned === 1 ? 'y' : 'ies'} of ${card.name} — can't add more than you own.`, true);
+      return;
+    }
+  }
+  state.deck.push({ ...card });
+  refreshAfterDeckChange(card, before === 0);
+}
+
+function deckRemoveOne(card){
+  const idx = state.deck.findIndex(d => d.name === card.name && !!d.foil === !!card.foil);
+  const before = deckQtyFor(card);
+  if(idx >= 0) state.deck.splice(idx, 1);
+  refreshAfterDeckChange(card, before === 1);
+}
+
+// Cheap path for a single add/remove click: patch just the affected tiles' overlays
+// and the stats numbers, without rebuilding the whole grid (which would restart every
+// mythic border animation on screen, not just the card that changed). Falls back to a
+// full Deck Builder rebuild only when a tile genuinely needs to appear or disappear —
+// i.e. this card just went from 0 copies to 1, or 1 copy to 0, in the deck.
+function refreshAfterDeckChange(card, structural){
+  const key = card.name + '|' + (card.foil ? 'foil' : 'normal');
+  refreshDeckOverlaysForKey(key);
+  updateDeckStatsOnly();
+  if(structural && state.activeTab === 'deck') renderDeckTab();
+}
+
+// Used by bulk operations (import, basic-land add) where many cards change at once and
+// a full rebuild is simplest and expected.
+function fullRefreshAfterBulkDeckChange(){
+  state.suppressCardAnim = true;
+  if(state.pool.length) renderPool();
+  if(state.activeTab === 'deck') renderDeckTab();
+  state.suppressCardAnim = false;
+}
+
+function updateDeckStatsOnly(){
+  const limit = state.settings.deckSize;
+  const total = state.deck.length;
+  const counts = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0, foil: 0 };
+  let value = 0;
+  for(const c of state.deck){
+    if(counts[c.rarity] !== undefined) counts[c.rarity]++; else counts.other++;
+    if(c.foil) counts.foil++;
+    value += getCardPriceUsd(c);
+  }
+  const displayValue = state.settings.currency === 'AUD' && state.fxRate ? value * state.fxRate : value;
+  els.deckStats.innerHTML = `
+    <div class="stat"><div class="num">${total} / ${limit}</div><div class="label">Deck size</div></div>
+    <div class="stat common"><div class="num">${counts.common}</div><div class="label">Common</div></div>
+    <div class="stat uncommon"><div class="num">${counts.uncommon}</div><div class="label">Uncommon</div></div>
+    <div class="stat rare"><div class="num">${counts.rare}</div><div class="label">Rare</div></div>
+    <div class="stat mythic"><div class="num">${counts.mythic}</div><div class="label">Mythic</div></div>
+    <div class="stat value"><div class="num">${formatCurrency(displayValue, state.settings.currency)}</div><div class="label">Deck value (approx.)</div></div>
+  `;
+  els.deckEmptyMsg.style.display = total > 0 ? 'none' : 'block';
+}
+
+function clearDeck(){
+  if(state.deck.length === 0) return;
+  if(!confirm(`Clear your entire deck (${state.deck.length} card${state.deck.length === 1 ? '' : 's'})? This can't be undone.`)) return;
+  state.deck = [];
+  fullRefreshAfterBulkDeckChange();
+  setStatus('Deck cleared.');
+}
+
+function renderDeckTab(){
+  updateDeckStatsOnly();
+  const total = state.deck.length;
+  const counts = { common: 0, uncommon: 0, rare: 0, mythic: 0, other: 0 };
+  for(const c of state.deck){
+    if(counts[c.rarity] !== undefined) counts[c.rarity]++; else counts.other++;
+  }
+
+  els.deckByRarity.innerHTML = '';
+  if(total === 0) return;
+
+  const term = state.deckSearchTerm.trim().toLowerCase();
+  const filtered = term ? state.deck.filter(c => c.name.toLowerCase().includes(term)) : state.deck;
+
+  const order = ['mythic', 'rare', 'uncommon', 'common', 'other'];
+  const globalNavList = [];
+  const sections = [];
+  for(const rarity of order){
+    const cardsForRarity = sortCards(
+      filtered.filter(c => (counts[c.rarity] !== undefined ? c.rarity : 'other') === rarity),
+      state.deckSort
+    );
+    if(cardsForRarity.length === 0) continue;
+    const grouped = new Map();
+    for(const c of cardsForRarity){
+      const key = c.name + '|' + (c.foil ? 'foil' : 'normal');
+      if(!grouped.has(key)) grouped.set(key, { card: c, qty: 0 });
+      grouped.get(key).qty++;
+    }
+    const entries = [...grouped.values()];
+    const startIdx = globalNavList.length;
+    entries.forEach(e => { e.card.__stackQty = e.qty; globalNavList.push(e.card); });
+    sections.push({ rarity, count: cardsForRarity.length, entries, startIdx });
+  }
+
+  for(const { rarity, count, entries, startIdx } of sections){
+    const section = document.createElement('div');
+    section.className = 'rarity-section';
+    const head = document.createElement('p');
+    head.className = 'rarity-subhead';
+    head.style.color = RARITY_COLOR[rarity] || RARITY_COLOR.common;
+    head.innerHTML = `${rarity}<span class="count">(${count})</span>`;
+    const grid = document.createElement('div');
+    grid.className = 'card-grid';
+    // No qty-badge here — the deck-tick (from deckControl) already shows the count,
+    // and keeping just one source of truth avoids it going stale on a targeted update.
+    entries.forEach(({ card }, j) => {
+      const el = cardEl(card, globalNavList, startIdx + j, undefined, true);
+      el.style.animationDelay = Math.min(j * 0.0067, 0.2) + 's';
+      grid.appendChild(el);
+    });
+    section.appendChild(head);
+    section.appendChild(grid);
+    els.deckByRarity.appendChild(section);
+  }
+  if(sections.length === 0){
+    els.deckByRarity.innerHTML = `<p class="info-sub">No cards in your deck match "${escapeHtml(state.deckSearchTerm)}".</p>`;
+  }
+}
+
+function parseDeckListText(text){
+  const lines = String(text || '').split(/\r?\n/);
+  const entries = [];
+  for(const raw of lines){
+    const line = raw.trim();
+    if(!line || line.startsWith('#') || line.startsWith('//')) continue;
+    // Accepts both the current export format (*Surge Foil*, *Etched Foil*, etc.)
+    // and the older short marker (*F*) for backwards compatibility.
+    const m = line.match(/^(\d+)\s*x?\s+(.+?)(?:\s*\*([^*]+)\*)?$/i);
+    if(!m) continue;
+    const qty = parseInt(m[1], 10);
+    const name = m[2].trim();
+    const rawMarker = m[3] ? m[3].trim() : null;
+    const foil = !!rawMarker;
+    const foilKind = rawMarker && rawMarker.toUpperCase() !== 'F' ? rawMarker : (foil ? 'Foil' : null);
+    if(qty > 0 && name) entries.push({ qty, name, foil, foilKind });
+  }
+  return entries;
+}
+
+function buildCardNameLookup(){
+  const entry = state.cache[state.currentCode];
+  const byName = new Map();
+  if(entry){
+    for(const c of entry.rawCards){
+      const key = c.name.toLowerCase();
+      if(!byName.has(key)) byName.set(key, c);
+    }
+  }
+  return byName;
+}
+
+function importPoolFromText(text){
+  if(!state.currentCode || !state.cache[state.currentCode]){
+    setStatus('Load a set before importing a pool.', true);
+    return;
+  }
+  const byName = buildCardNameLookup();
+  const parsed = parseDeckListText(text);
+  let added = 0, skipped = 0;
+  for(const { qty, name, foil, foilKind } of parsed){
+    const cardObj = byName.get(name.toLowerCase());
+    if(!cardObj){ skipped += qty; continue; }
+    for(let i=0;i<qty;i++){
+      state.pool.push(toPulledCard(cardObj, foil, 'import', state.currentCode, false, foilKind));
+      added++;
+    }
+  }
+  renderPool();
+  refreshPoolValue();
+  setStatus(`Imported ${added} card${added === 1 ? '' : 's'} into your pool${skipped ? ` (${skipped} not found in ${state.currentCode} and skipped)` : ''}.`, skipped > 0 && added === 0);
+}
+
+function importDeckFromText(text){
+  if(!state.currentCode || !state.cache[state.currentCode]){
+    setStatus('Load a set before importing a deck.', true);
+    return;
+  }
+  const byName = buildCardNameLookup();
+  const parsed = parseDeckListText(text);
+  const newDeck = [];
+  let added = 0, skipped = 0;
+  for(const { qty, name, foil, foilKind } of parsed){
+    const cardObj = byName.get(name.toLowerCase());
+    if(!cardObj){ skipped += qty; continue; }
+    for(let i=0;i<qty;i++){
+      if(newDeck.length >= state.settings.deckSize) break;
+      newDeck.push(toPulledCard(cardObj, foil, 'import', state.currentCode, false, foilKind));
+      added++;
+    }
+  }
+  state.deck = newDeck; // importing a deck replaces the current one
+  fullRefreshAfterBulkDeckChange();
+  setStatus(`Imported ${added} card${added === 1 ? '' : 's'} into your deck${skipped ? ` (${skipped} not found in ${state.currentCode} and skipped)` : ''}.`, skipped > 0 && added === 0);
+}
+
+function exportDeck(){
+  if(state.deck.length === 0) return;
+  const counts = new Map();
+  for(const c of state.deck){
+    const key = c.name + '|' + (c.foil ? 'foil' : 'normal');
+    if(!counts.has(key)) counts.set(key, { name: c.name, foil: c.foil, rarity: c.rarity, qty: 0, foilKind: resolveFoilKind(c) });
+    counts.get(key).qty++;
+  }
+  const order = ['mythic', 'rare', 'uncommon', 'common', 'other'];
+  const rows = [...counts.values()].sort((a,b) =>
+    order.indexOf(a.rarity) - order.indexOf(b.rarity) || a.name.localeCompare(b.name));
+
+  const lines = [
+    `# MTG Pack Simulator — Deck List`,
+    `# Set: ${state.currentCode || 'unknown'}`,
+    `# Deck size: ${state.deck.length} / ${state.settings.deckSize}`,
+    `# Exported: ${new Date().toISOString()}`,
+    ''
+  ];
+  for(const r of rows) lines.push(`${r.qty} ${r.name}${r.foil ? ` *${r.foilKind || 'Foil'}*` : ''}`);
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${state.currentCode || 'deck'}-deck.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function populateBasicLandSelect(){
+  const entry = state.cache[state.currentCode];
+  els.basicLandSelect.innerHTML = '';
+  if(!entry){
+    els.basicLandSelect.innerHTML = '<option value="">Load a set first</option>';
+    return;
+  }
+  const seen = new Map();
+  for(const c of entry.rawCards){
+    if(c.supertypes && c.supertypes.includes('Basic') && c.types && c.types.includes('Land')){
+      if(!seen.has(c.name)) seen.set(c.name, c);
+    }
+  }
+  if(seen.size === 0){
+    els.basicLandSelect.innerHTML = '<option value="">No basics found for this set</option>';
+    return;
+  }
+  els.basicLandSelect.innerHTML = [...seen.keys()]
+    .map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+    .join('');
+}
+
+// Basics added this way don't need to have been pulled from a pack first — decks
+// routinely need extra lands beyond whatever your pool happened to open. Once one's
+// in the deck, hovering its tile in Deck Builder lets you keep adding more with +.
+function addOneBasicLand(cardObj){
+  if(state.deck.length >= state.settings.deckSize){
+    setStatus(`Deck is already full (${state.settings.deckSize}/${state.settings.deckSize}).`, true);
+    return;
+  }
+  const pulled = toPulledCard(cardObj, false, 'basic', state.currentCode);
+  const before = deckQtyFor(pulled);
+  state.deck.push(pulled);
+  refreshAfterDeckChange(pulled, before === 0);
+}
+
+function addBasicLandsToDeck(){
+  const entry = state.cache[state.currentCode];
+  if(!entry) return;
+  const name = els.basicLandSelect.value;
+  if(!name) return;
+  const cardObj = entry.rawCards.find(c => c.name === name && c.supertypes && c.supertypes.includes('Basic'));
+  if(!cardObj) return;
+  const qty = Math.max(1, Math.min(20, parseInt(els.basicLandQty.value, 10) || 1));
+  let added = 0;
+  for(let i=0;i<qty;i++){
+    if(state.deck.length >= state.settings.deckSize) break;
+    state.deck.push(toPulledCard(cardObj, false, 'basic', state.currentCode));
+    added++;
+  }
+  if(added < qty){
+    setStatus(`Added ${added} of ${qty} ${name} — deck is full at ${state.settings.deckSize}.`, added === 0);
+  }
+  fullRefreshAfterBulkDeckChange();
+}
+
+function exportPool(){
+  if(state.pool.length === 0) return;
+  const counts = new Map(); // "name|foil" -> {name, foil, rarity, qty, foilKind}
+  for(const c of state.pool){
+    const key = c.name + '|' + (c.foil ? 'foil' : 'normal');
+    if(!counts.has(key)) counts.set(key, { name: c.name, foil: c.foil, rarity: c.rarity, qty: 0, foilKind: resolveFoilKind(c) });
+    counts.get(key).qty++;
+  }
+  const order = ['mythic', 'rare', 'uncommon', 'common', 'other'];
+  const rows = [...counts.values()].sort((a,b) =>
+    order.indexOf(a.rarity) - order.indexOf(b.rarity) || a.name.localeCompare(b.name));
+
+  const lines = [
+    `# MTG Pack Simulator — Sealed Pool`,
+    `# Set: ${state.currentCode || 'unknown'}`,
+    `# Total cards: ${state.pool.length}`,
+    `# Exported: ${new Date().toISOString()}`,
+    ''
+  ];
+  for(const r of rows){
+    lines.push(`${r.qty} ${r.name}${r.foil ? ` *${r.foilKind || 'Foil'}*` : ''} (${r.rarity})`);
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${state.currentCode || 'sealed'}-pool.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatCurrency(value, currency){
+  const symbol = currency === 'EUR' ? '€' : '$';
+  return `${symbol}${value.toFixed(2)} ${currency}`;
+}
+
+async function fetchMissingScryfallData(ids){
+  const idsNeeded = [...new Set(ids)].filter(id => id && !state.scryfallCache[id]);
+  for(let i=0;i<idsNeeded.length;i+=75){
+    const batch = idsNeeded.slice(i, i + 75);
+    try{
+      const res = await fetch('https://api.scryfall.com/cards/collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiers: batch.map(id => ({ id })) })
+      });
+      if(res.ok){
+        const json = await res.json();
+        for(const c of json.data) state.scryfallCache[c.id] = c;
+      }
+    }catch(err){
+      console.warn('Price lookup batch failed', err);
+    }
+  }
+}
+
+async function refreshPoolValue(){
+  if(state.pool.length === 0){
+    state.poolValue = 0;
+    renderPoolValueStat();
+    return;
+  }
+  state.poolValue = null; // show loading state
+  renderPoolValueStat();
+
+  await fetchMissingScryfallData(state.pool.filter(c => c.scryfallId).map(c => c.scryfallId));
+
+  if(state.settings.currency === 'AUD') await ensureFxRate();
+
+  let total = 0;
+  for(const c of state.pool){
+    if(!c.scryfallId) continue;
+    const sc = state.scryfallCache[c.scryfallId];
+    if(!sc || !sc.prices) continue;
+    const p = sc.prices;
+    let val = null;
+    if(state.settings.currency === 'EUR'){
+      val = c.foil ? (p.eur_foil || p.eur) : p.eur;
+    }else if(state.settings.currency === 'AUD'){
+      const usdVal = c.foil ? (p.usd_foil || p.usd) : p.usd;
+      if(usdVal && state.fxRate) val = parseFloat(usdVal) * state.fxRate;
+    }else{
+      val = c.foil ? (p.usd_foil || p.usd) : p.usd;
+    }
+    if(val) total += parseFloat(val);
+  }
+  state.poolValue = total;
+  renderPoolValueStat();
+}
+
+function renderPoolValueStat(){
+  const el = document.getElementById('poolValueNum');
+  if(!el) return;
+  el.textContent = state.poolValue === null ? '…' : formatCurrency(state.poolValue, state.settings.currency);
+}
+
+function rarityRank(r){
+  return { mythic: 4, rare: 3, uncommon: 2, common: 1 }[r] || 0;
+}
+
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Every sound routes through a fresh master gain node scaled to the volume slider,
+// so turning the slider down (or muting) affects every effect uniformly.
+function getMasterGain(ctx){
+  const g = ctx.createGain();
+  g.gain.value = state.settings.muted ? 0 : state.settings.volume;
+  g.connect(ctx.destination);
+  return g;
+}
+
+function playTearSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  const dur = 0.35;
+  const bufferSize = Math.floor(ctx.sampleRate * dur);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.Q.value = 1.1;
+  filter.frequency.setValueAtTime(1900, ctx.currentTime);
+  filter.frequency.exponentialRampToValueAtTime(500, ctx.currentTime + dur);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.55, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  noise.connect(filter).connect(gain).connect(master);
+  noise.start();
+  noise.stop(ctx.currentTime + dur);
+}
+
+function playChimeSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  [880, 1108, 1320].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const gain = ctx.createGain();
+    const t0 = ctx.currentTime + i * 0.06;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+    osc.connect(gain).connect(master);
+    osc.start(t0);
+    osc.stop(t0 + 0.5);
+  });
+}
+
+function playThudSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(160, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + 0.25);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.6, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+  osc.connect(gain).connect(master);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.3);
+}
+
+function playZipSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(220, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(2200, ctx.currentTime + 0.18);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.001, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+  osc.connect(gain).connect(master);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.2);
+}
+
+// A handful of metallic clinks landing on top of each other, like coins hitting a pile.
+function playCoinDropSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  const clinks = 6;
+  for(let i=0;i<clinks;i++){
+    const t0 = ctx.currentTime + i * 0.055 + Math.random() * 0.02;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    const freq = 1800 + Math.random() * 900;
+    osc.frequency.setValueAtTime(freq, t0);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.6, t0 + 0.12);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(0.18, t0 + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.16);
+    osc.connect(gain).connect(master);
+    osc.start(t0);
+    osc.stop(t0 + 0.18);
+  }
+  // low-end "landing in the pile" thump underneath the clinks
+  const thump = ctx.createOscillator();
+  thump.type = 'sine';
+  thump.frequency.setValueAtTime(90, ctx.currentTime);
+  thump.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.2);
+  const thumpGain = ctx.createGain();
+  thumpGain.gain.setValueAtTime(0.3, ctx.currentTime);
+  thumpGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+  thump.connect(thumpGain).connect(master);
+  thump.start();
+  thump.stop(ctx.currentTime + 0.25);
+}
+
+// A soft ascending major arpeggio with long, overlapping releases for a "heavenly" glow.
+function playHeavenSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5];
+  notes.forEach((freq, i) => {
+    const t0 = ctx.currentTime + i * 0.13;
+    [1, 2.005].forEach((mult, j) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq * mult;
+      const gain = ctx.createGain();
+      const peak = j === 0 ? 0.16 : 0.05;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 1.6);
+      osc.connect(gain).connect(master);
+      osc.start(t0);
+      osc.stop(t0 + 1.6);
+    });
+  });
+}
+
+// A slow, deep gong-like bell — an alternative mythic reveal sound.
+function playBellSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  [220, 330, 554].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(i === 0 ? 0.32 : 0.12, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.2);
+    osc.connect(gain).connect(master);
+    osc.start();
+    osc.stop(ctx.currentTime + 2.2);
+  });
+}
+
+// A bright two-tone cash-register "cha-ching" — an alternative high-value reveal sound.
+function playChaChingSound(){
+  const ctx = getAudioCtx();
+  const master = getMasterGain(ctx);
+  [1568, 2093].forEach((freq, i) => {
+    const t0 = ctx.currentTime + i * 0.09;
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(0.14, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+    osc.connect(gain).connect(master);
+    osc.start(t0);
+    osc.stop(t0 + 0.35);
+  });
+}
+
+const SOUND_PRESETS = {
+  tear: playTearSound,
+  chime: playChimeSound,
+  thud: playThudSound,
+  zip: playZipSound
+};
+
+const SOUND_DURATIONS_MS = {
+  tear: 400, chime: 600, thud: 350, zip: 250,
+  coin: 450, chaching: 450, heaven: 2200, bell: 2300
+};
+
+// Cap how many synthesized sounds can be audibly overlapping at once — without this,
+// opening a big batch of packs can fire a dozen reveal sounds simultaneously and it
+// turns into noise. Extra plays are simply skipped rather than queued.
+const MAX_CONCURRENT_SOUNDS = 3;
+let activeSoundCount = 0;
+function canPlaySound(){ return activeSoundCount < MAX_CONCURRENT_SOUNDS; }
+function markSoundPlaying(durationMs){
+  activeSoundCount++;
+  setTimeout(() => { activeSoundCount = Math.max(0, activeSoundCount - 1); }, durationMs || 500);
+}
+
+const MYTHIC_SOUND_PRESETS = {
+  heaven: playHeavenSound,
+  bell: playBellSound,
+  none: () => {}
+};
+
+const VALUE_SOUND_PRESETS = {
+  coin: playCoinDropSound,
+  chaching: playChaChingSound,
+  none: () => {}
+};
+
+function playSound(key){
+  if(state.settings.muted) return;
+  if(!canPlaySound()) return;
+  try{
+    (SOUND_PRESETS[key] || SOUND_PRESETS.tear)();
+    markSoundPlaying(SOUND_DURATIONS_MS[key] || 500);
+  }catch(err){
+    console.warn('Audio playback failed', err);
+  }
+}
+
+function playReactionSound(kind){
+  if(state.settings.muted) return;
+  if(!canPlaySound()) return;
+  try{
+    if(kind === 'value'){
+      const key = state.settings.valueSound;
+      if(key === 'none') return;
+      (VALUE_SOUND_PRESETS[key] || playCoinDropSound)();
+      markSoundPlaying(SOUND_DURATIONS_MS[key] || 500);
+    }
+    if(kind === 'mythic'){
+      const key = state.settings.mythicSound;
+      if(key === 'none') return;
+      (MYTHIC_SOUND_PRESETS[key] || playHeavenSound)();
+      markSoundPlaying(SOUND_DURATIONS_MS[key] || 500);
+    }
+  }catch(err){
+    console.warn('Audio playback failed', err);
+  }
+}
+
+function playPackAnimation(){
+  return new Promise(resolve => {
+    if(state.settings.instantRip){
+      playSound(state.settings.sound);
+      resolve();
+      return;
+    }
+    const info = state.sets.find(s => s.code === state.currentCode) || { code: state.currentCode, name: '' };
+    const entry = state.cache[state.currentCode];
+    const iconUrl = entry && entry.setIconUrl;
+    const useArt = state.settings.showPackArt && iconUrl;
+
+    const pack = document.createElement('div');
+    pack.className = 'pack' + (state.useCollector ? ' pack-collector' : '');
+    pack.innerHTML = `
+      <div class="pack-code">${escapeHtml(info.code)}</div>
+      <div class="pack-seam"></div>
+      ${useArt ? `<div class="pack-icon"><img src="${iconUrl}" alt=""></div>` : `<div class="pack-name">${escapeHtml(info.name)}</div>`}
+      <div class="pack-hint">${state.settings.autoRip ? 'Tearing…' : 'Click to tear open'}</div>
+    `;
+    els.packStage.innerHTML = '';
+    els.packStage.appendChild(pack);
+
+    const tear = () => {
+      playSound(state.settings.sound);
+      pack.classList.add('tearing');
+      pack.style.pointerEvents = 'none';
+      setTimeout(() => {
+        els.packStage.innerHTML = '';
+        resolve();
+      }, 480);
+    };
+
+    if(state.settings.autoRip){
+      setTimeout(tear, 650);
+    }else{
+      pack.addEventListener('click', tear, { once: true });
+    }
+  });
+}
+
+async function openOne(){
+  if(!state.currentCode) return;
+  toggleButtons(true);
+  await playPackAnimation();
+  const cards = generateBooster(state.currentCode);
+  state.pool.push(...cards);
+  await fetchMissingScryfallData(cards.filter(c => c.scryfallId).map(c => c.scryfallId));
+  renderReveal(cards, `Just opened — ${state.currentCode}`);
+  renderPool();
+  refreshPoolValue();
+  showIdlePack();
+  toggleButtons(false);
+}
+
+function showIdlePack(){
+  const n = Math.max(1, Math.min(30, parseInt(els.packCount.value, 10) || 6));
+  const collectorClass = state.useCollector ? ' pack-collector' : '';
+  if(n <= 1){
+    els.packStage.innerHTML = `<div class="pack pack-idle${collectorClass}"><div class="pack-name">Select a pack to<br>start ripping</div></div>`;
+    els.packStage.classList.remove('pack-stage-multi');
+    els.packStageCaption.textContent = '';
+  }else{
+    // Mirrors however many mini packs the interactive batch view will actually show
+    // (capped at 6, same as the real tear-them-one-by-one flow) so the space doesn't
+    // change size when you click Open Sealed Pool.
+    const shown = Math.min(n, 6);
+    els.packStage.innerHTML = Array.from({ length: shown }, () => `<div class="pack pack-idle pack-mini${collectorClass}"></div>`).join('');
+    els.packStage.classList.add('pack-stage-multi');
+    els.packStageCaption.textContent = n > 6
+      ? `Select a pack to start ripping — ${n} packs queued (opens instantly at this quantity)`
+      : `Select a pack to start ripping — ${n} packs queued`;
+  }
+}
+
+function openPacksBatch(n){
+  return new Promise(resolve => {
+    const info = state.sets.find(s => s.code === state.currentCode) || { code: state.currentCode, name: '' };
+    const entry = state.cache[state.currentCode];
+    const iconUrl = entry && entry.setIconUrl;
+    const useArt = state.settings.showPackArt && iconUrl;
+
+    els.packStage.innerHTML = '';
+    els.packStage.classList.add('pack-stage-multi');
+
+    const collected = [];
+    let remaining = n;
+    const finishIfDone = () => {
+      if(remaining === 0){
+        els.packStage.innerHTML = '';
+        els.packStage.classList.remove('pack-stage-multi');
+        resolve(collected);
+      }
+    };
+
+    for(let i=0;i<n;i++){
+      const pack = document.createElement('div');
+      pack.className = 'pack pack-mini' + (state.useCollector ? ' pack-collector' : '');
+      pack.innerHTML = `
+        <div class="pack-code">${escapeHtml(info.code)}</div>
+        <div class="pack-seam"></div>
+        ${useArt ? `<div class="pack-icon"><img src="${iconUrl}" alt=""></div>` : `<div class="pack-name">${escapeHtml(info.name)}</div>`}
+        <div class="pack-hint">${state.settings.autoRip ? 'Tearing…' : 'Tap to tear'}</div>
+      `;
+      els.packStage.appendChild(pack);
+
+      const tear = () => {
+        playSound(state.settings.sound);
+        pack.classList.add('tearing');
+        pack.style.pointerEvents = 'none';
+        const cards = generateBooster(state.currentCode);
+        state.pool.push(...cards);
+        collected.push(...cards);
+        setTimeout(() => {
+          pack.style.visibility = 'hidden'; // keep its layout space so remaining packs don't shift position
+          remaining--;
+          finishIfDone();
+        }, 480);
+      };
+
+      if(state.settings.autoRip){
+        setTimeout(tear, 500 + i * 140);
+      }else{
+        pack.addEventListener('click', tear, { once: true });
+      }
+    }
+  });
+}
+
+async function openPool(){
+  if(!state.currentCode) return;
+  const n = Math.max(1, Math.min(30, parseInt(els.packCount.value, 10) || 6));
+  toggleButtons(true);
+  const setMeta = state.sets.find(s => s.code === state.currentCode);
+  const setLabel = setMeta ? `${state.currentCode} — ${setMeta.name}` : state.currentCode;
+
+  let all = [];
+  if(state.settings.instantRip || n > 6){
+    setStatus(`Opening ${n} packs from ${setLabel}…`);
+    for(let i=0;i<n;i++){
+      const cards = generateBooster(state.currentCode);
+      all = all.concat(cards);
+      state.pool.push(...cards);
+    }
+    playSound(state.settings.sound);
+  }else{
+    setStatus(`Tear open your ${n} packs from ${setLabel}…`);
+    all = await openPacksBatch(n);
+  }
+
+  setStatus(`Opened ${n} packs from ${setLabel}.`);
+  await fetchMissingScryfallData(all.filter(c => c.scryfallId).map(c => c.scryfallId));
+  renderReveal(all, `Sealed pool — ${n} packs of ${state.currentCode}`);
+  renderPool();
+  refreshPoolValue();
+  showIdlePack();
+  toggleButtons(false);
+}
+
+function toggleButtons(disabled){
+  els.openOne.disabled = disabled;
+  els.openPool.disabled = disabled;
+  els.search.disabled = disabled;
+  els.collectorToggle.disabled = disabled ? true : !state.collectorAvailable;
+}
+
+els.openOne.addEventListener('click', openOne);
+els.openPool.addEventListener('click', openPool);
+els.tabOpenedBtn.addEventListener('click', () => setActiveTab('opened'));
+els.tabPoolBtn.addEventListener('click', () => setActiveTab('pool'));
+els.tabSetBtn.addEventListener('click', () => setActiveTab('set'));
+els.tabDeckBtn.addEventListener('click', () => setActiveTab('deck'));
+els.deckSortSelect.addEventListener('change', () => {
+  state.deckSort = els.deckSortSelect.value;
+  renderDeckTab();
+});
+els.deckSearch.addEventListener('input', () => {
+  state.deckSearchTerm = els.deckSearch.value;
+  renderDeckTab();
+});
+els.addBasicLandBtn.addEventListener('click', () => {
+  const showing = els.basicLandPicker.style.display !== 'none';
+  if(showing){
+    els.basicLandPicker.style.display = 'none';
+  }else{
+    populateBasicLandSelect();
+    els.basicLandPicker.style.display = 'flex';
+  }
+});
+els.basicLandAddBtn.addEventListener('click', addBasicLandsToDeck);
+els.setBrowserSearch.addEventListener('input', () => {
+  state.setSearchTerm = els.setBrowserSearch.value;
+  if(state.setBrowserCode) safeRenderSetBrowser(state.setBrowserCode);
+});
+els.setSortSelect.addEventListener('change', () => {
+  state.setSort = els.setSortSelect.value;
+  if(state.setBrowserCode) safeRenderSetBrowser(state.setBrowserCode);
+});
+els.setLandFilter.addEventListener('change', () => {
+  state.setLandFilter = els.setLandFilter.value;
+  if(state.setBrowserCode) safeRenderSetBrowser(state.setBrowserCode);
+});
+els.revealSortSelect.addEventListener('change', () => {
+  state.revealSort = els.revealSortSelect.value;
+  renderRevealGrid(false);
+});
+els.revealLandFilter.addEventListener('change', () => {
+  state.revealLandFilter = els.revealLandFilter.value;
+  renderRevealGrid(false);
+});
+els.setBrowserTypeFilters.addEventListener('change', (e) => {
+  const cb = e.target.closest('input[type="checkbox"]');
+  if(!cb) return;
+  const t = cb.dataset.type;
+  if(cb.checked) state.setTypeFilters.add(t); else state.setTypeFilters.delete(t);
+  if(state.setBrowserCode) renderSetBrowser(state.setBrowserCode);
+});
+els.goToPoolBtn.addEventListener('click', () => { setActiveTab('pool'); window.scrollTo(0, 0); });
+els.backToOpenedBtn.addEventListener('click', () => { setActiveTab('opened'); window.scrollTo(0, 0); });
+els.reset.addEventListener('click', () => {
+  if(state.pool.length > 0 && !confirm('Clear your entire pool? This can\'t be undone.')) return;
+  state.pool = [];
+  state.poolSearchTerm = '';
+  state.poolValue = null;
+  state.poolTypeFilters.clear();
+  state.hasRevealed = false;
+  els.poolSearch.value = '';
+  els.revealGrid.innerHTML = '';
+  els.revealStatsPanel.style.display = 'none';
+  renderPool();
+  setStatus(state.currentCode ? `Pool cleared. Ready to rip more ${state.currentCode} packs.` : 'Pool cleared.');
+});
+els.setInfoBtn.addEventListener('click', () => {
+  if(!state.currentCode) return;
+  const showing = els.setInfoPanel.style.display !== 'none';
+  if(showing){
+    els.setInfoPanel.style.display = 'none';
+    els.setInfoBtn.classList.remove('active');
+  }else{
+    renderSetInfo(state.currentCode);
+    els.setInfoPanel.style.display = 'block';
+    els.setInfoBtn.classList.add('active');
+    els.setInfoPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+});
+els.collectorToggle.addEventListener('click', () => {
+  if(!state.collectorAvailable) return;
+  state.useCollector = !state.useCollector;
+  els.collectorToggle.textContent = 'Collector Booster: ' + (state.useCollector ? 'On' : 'Off');
+  els.collectorToggle.classList.toggle('primary', state.useCollector);
+  els.collectorToggle.classList.toggle('collector-glisten', state.useCollector);
+  if(state.currentCode && els.setInfoPanel.style.display !== 'none') renderSetInfo(state.currentCode);
+  updatePackCostNote();
+});
+els.poolSearch.addEventListener('input', () => {
+  state.poolSearchTerm = els.poolSearch.value;
+  renderPool();
+});
+els.poolSortSelect.addEventListener('change', () => {
+  state.poolSort = els.poolSortSelect.value;
+  renderPool();
+});
+els.poolLandFilter.addEventListener('change', () => {
+  state.poolLandFilter = els.poolLandFilter.value;
+  renderPool();
+});
+els.poolTypeFilters.addEventListener('change', (e) => {
+  const cb = e.target.closest('input[type="checkbox"]');
+  if(!cb) return;
+  const t = cb.dataset.type;
+  if(cb.checked) state.poolTypeFilters.add(t); else state.poolTypeFilters.delete(t);
+  renderPool();
+});
+els.exportBtn.addEventListener('click', exportPool);
+els.importPoolBtn.addEventListener('click', () => els.importPoolFile.click());
+els.importPoolFile.addEventListener('change', () => {
+  const file = els.importPoolFile.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => importPoolFromText(reader.result);
+  reader.readAsText(file);
+  els.importPoolFile.value = '';
+});
+els.importDeckBtn.addEventListener('click', () => els.importDeckFile.click());
+els.importDeckFile.addEventListener('change', () => {
+  const file = els.importDeckFile.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => importDeckFromText(reader.result);
+  reader.readAsText(file);
+  els.importDeckFile.value = '';
+});
+els.exportDeckBtn.addEventListener('click', exportDeck);
+els.clearDeckBtn.addEventListener('click', clearDeck);
+els.packCount.addEventListener('input', () => {
+  const v = parseInt(els.packCount.value, 10);
+  if(!isNaN(v) && v > 30) els.packCount.value = 30;
+  updatePackCostNote();
+  showIdlePack();
+});
+els.modalClose.addEventListener('click', closeCardModal);
+els.modalPrevBtn.addEventListener('click', () => navigateModal(-1));
+els.modalNextBtn.addEventListener('click', () => navigateModal(1));
+els.cardModal.addEventListener('click', (e) => {
+  if(e.target === els.cardModal) closeCardModal();
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape'){
+    if(els.cardModal.classList.contains('open')) closeCardModal();
+    if(els.settingsModal.classList.contains('open')) closeSettingsModal();
+  }
+  if(els.cardModal.classList.contains('open') && state.modalNav){
+    if(e.key === 'ArrowRight') navigateModal(1);
+    if(e.key === 'ArrowLeft') navigateModal(-1);
+  }
+});
+
+function navigateModal(delta){
+  if(!state.modalNav) return;
+  const { list } = state.modalNav;
+  let idx = state.modalNav.idx + delta;
+  if(idx < 0) idx = list.length - 1;
+  if(idx >= list.length) idx = 0;
+  openCardModal(list[idx], list, idx);
+}
+
+function renderThemePicker(){
+  els.themePickerList.innerHTML = Object.entries(THEMES).map(([key, t]) => `
+    <div class="theme-option${state.settings.theme === key ? ' active' : ''}" data-theme="${key}">
+      <span class="theme-swatches">${t.colors.slice(0,3).map(c => `<span style="background:${c}"></span>`).join('')}</span>
+      <span>${escapeHtml(t.name)}</span>
+    </div>`).join('');
+  const current = THEMES[state.settings.theme] || THEMES.felt;
+  els.themeBtnLabel.textContent = current.name;
+  els.themeBtnSwatches.innerHTML = current.colors.slice(0,3).map(c => `<span style="background:${c}"></span>`).join('');
+}
+
+function openSettingsModal(){
+  els.currencySelect.value = state.settings.currency;
+  els.showPackArtToggle.checked = state.settings.showPackArt;
+  els.instantRipToggle.checked = state.settings.instantRip;
+  els.autoRipToggle.checked = state.settings.autoRip;
+  els.animationsToggle.checked = state.settings.animations;
+  els.includeLandsToggle.checked = state.settings.includeLands;
+  els.deckSizeInput.value = state.settings.deckSize;
+  els.soundSelect.value = state.settings.sound;
+  els.mythicSoundSelect.value = state.settings.mythicSound;
+  els.valueSoundSelect.value = state.settings.valueSound;
+  els.muteToggle.checked = state.settings.muted;
+  els.volumeSlider.value = Math.round(state.settings.volume * 100);
+  els.showLegalityToggle.checked = state.settings.showLegality;
+  renderThemePicker();
+  els.settingsModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSettingsModal(){
+  els.settingsModal.classList.remove('open');
+  els.themePickerList.classList.remove('open');
+  if(!els.cardModal.classList.contains('open')) document.body.style.overflow = '';
+}
+
+els.settingsBtn.addEventListener('click', openSettingsModal);
+els.settingsClose.addEventListener('click', closeSettingsModal);
+els.settingsModal.addEventListener('click', (e) => {
+  if(e.target === els.settingsModal) closeSettingsModal();
+});
+els.themePickerBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  els.themePickerList.classList.toggle('open');
+});
+els.themePickerList.addEventListener('click', (e) => {
+  const opt = e.target.closest('.theme-option');
+  if(!opt) return;
+  applyTheme(opt.dataset.theme);
+  renderThemePicker();
+  els.themePickerList.classList.remove('open');
+});
+document.addEventListener('click', (e) => {
+  if(els.themePickerList.classList.contains('open') && !e.target.closest('#themePicker')){
+    els.themePickerList.classList.remove('open');
+  }
+});
+els.currencySelect.addEventListener('change', () => {
+  state.settings.currency = els.currencySelect.value;
+  if(state.pool.length) refreshPoolValue();
+  else renderPoolValueStat();
+  updatePackCostNote();
+});
+els.showPackArtToggle.addEventListener('change', () => {
+  state.settings.showPackArt = els.showPackArtToggle.checked;
+});
+els.instantRipToggle.addEventListener('change', () => {
+  state.settings.instantRip = els.instantRipToggle.checked;
+});
+els.autoRipToggle.addEventListener('change', () => {
+  state.settings.autoRip = els.autoRipToggle.checked;
+});
+els.animationsToggle.addEventListener('change', () => {
+  state.settings.animations = els.animationsToggle.checked;
+  document.body.classList.toggle('no-animations', !state.settings.animations);
+});
+els.includeLandsToggle.addEventListener('change', () => {
+  state.settings.includeLands = els.includeLandsToggle.checked;
+});
+els.deckSizeInput.addEventListener('change', () => {
+  state.settings.deckSize = Math.max(1, parseInt(els.deckSizeInput.value, 10) || 40);
+  renderDeckTab();
+});
+els.soundSelect.addEventListener('change', () => {
+  state.settings.sound = els.soundSelect.value;
+});
+els.soundPreviewBtn.addEventListener('click', () => {
+  const wasMuted = state.settings.muted;
+  state.settings.muted = false;
+  playSound(els.soundSelect.value);
+  state.settings.muted = wasMuted;
+});
+els.mythicSoundSelect.addEventListener('change', () => {
+  state.settings.mythicSound = els.mythicSoundSelect.value;
+});
+els.mythicSoundPreviewBtn.addEventListener('click', () => {
+  const wasMuted = state.settings.muted;
+  state.settings.muted = false;
+  (MYTHIC_SOUND_PRESETS[els.mythicSoundSelect.value] || playHeavenSound)();
+  state.settings.muted = wasMuted;
+});
+els.valueSoundSelect.addEventListener('change', () => {
+  state.settings.valueSound = els.valueSoundSelect.value;
+});
+els.valueSoundPreviewBtn.addEventListener('click', () => {
+  const wasMuted = state.settings.muted;
+  state.settings.muted = false;
+  (VALUE_SOUND_PRESETS[els.valueSoundSelect.value] || playCoinDropSound)();
+  state.settings.muted = wasMuted;
+});
+els.muteToggle.addEventListener('change', () => {
+  state.settings.muted = els.muteToggle.checked;
+});
+els.volumeSlider.addEventListener('input', () => {
+  state.settings.volume = parseInt(els.volumeSlider.value, 10) / 100;
+});
+els.showLegalityToggle.addEventListener('change', () => {
+  state.settings.showLegality = els.showLegalityToggle.checked;
+});
+
+function closeCardModal(){
+  els.cardModal.classList.remove('open');
+  state.modalNav = null;
+  if(!els.settingsModal.classList.contains('open')) document.body.style.overflow = '';
+}
+
+async function ensureFxRate(){
+  if(state.fxRate !== null) return state.fxRate;
+  try{
+    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    state.fxRate = (json.rates && json.rates.AUD) ? json.rates.AUD : false;
+  }catch(err){
+    console.warn('Could not fetch USD→AUD rate', err);
+    state.fxRate = false;
+  }
+  return state.fxRate;
+}
+
+// There's no reliable API for actual per-set retail pricing, so this uses a flat,
+// commonly-cited modern booster MSRP as a rough estimate rather than real per-set data.
+// There's no free/public API for real-time sealed-product pricing (TCGPlayer's pricing
+// API requires paid partner access, unlike Scryfall's open card-price API used elsewhere
+// in this app), so live per-set box prices aren't something this app can fetch directly.
+// These are Wizards' own stated MSRP figures instead — confirmed via WotC's community
+// statements and the Hobbit Collector Booster MSRP of $455.88/box ÷ 12 packs = $37.99 —
+// not live market prices, which for a hyped set can run well above MSRP.
+const DEFAULT_PLAY_PACK_PRICE_USD = 4.99;
+const DEFAULT_COLLECTOR_PACK_PRICE_USD = 37.99;
+
+async function updatePackCostNote(){
+  const n = Math.max(1, Math.min(30, parseInt(els.packCount.value, 10) || 6));
+  const isCollector = state.useCollector;
+  let perPack = isCollector ? DEFAULT_COLLECTOR_PACK_PRICE_USD : DEFAULT_PLAY_PACK_PRICE_USD;
+  let currency = state.settings.currency;
+  if(currency === 'AUD'){
+    await ensureFxRate();
+    if(state.fxRate) perPack = perPack * state.fxRate;
+  }else if(currency === 'EUR'){
+    currency = 'USD'; // no EUR conversion source for this estimate — show USD instead of mislabeling it
+  }
+  const total = perPack * n;
+  const boosterLabel = isCollector ? 'Collector Booster' : 'Play Booster';
+  els.packCostNote.innerHTML = `Approx. retail cost (${boosterLabel}): ${formatCurrency(perPack, currency)} per pack · ${formatCurrency(total, currency)} for ${n} pack${n === 1 ? '' : 's'} <span style="opacity:0.65; font-style:italic;">(Wizards' stated MSRP, not a live market price — actual/secondary-market prices vary and can run well above MSRP for hyped sets)</span>`;
+}
+
+async function openCardModal(pulledCard, navList, navIdx){
+  state.modalNav = (navList && navList.length > 1) ? { list: navList, idx: navIdx } : null;
+  els.modalPrevBtn.style.display = state.modalNav ? 'flex' : 'none';
+  els.modalNextBtn.style.display = state.modalNav ? 'flex' : 'none';
+  els.cardModal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  els.modalBody.innerHTML = `<div class="modal-loading">Loading ${escapeHtml(pulledCard.name)}…</div>`;
+
+  const fallbackUrl = (!pulledCard.scryfallId && pulledCard.setCode && pulledCard.number)
+    ? `https://api.scryfall.com/cards/${pulledCard.setCode.toLowerCase()}/${encodeURIComponent(pulledCard.number)}`
+    : null;
+
+  if(!pulledCard.scryfallId && !fallbackUrl){
+    els.modalBody.innerHTML = renderModalFromLocal(pulledCard, 'No Scryfall ID on file for this printing — showing what we know locally.');
+    return;
+  }
+  try{
+    let sc = pulledCard.scryfallId && state.scryfallCache[pulledCard.scryfallId];
+    const [fetchedSc, fxRate] = await Promise.all([
+      sc ? Promise.resolve(sc) : fetch(pulledCard.scryfallId ? `https://api.scryfall.com/cards/${pulledCard.scryfallId}` : fallbackUrl).then(r => {
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }),
+      ensureFxRate()
+    ]);
+    sc = fetchedSc;
+    if(pulledCard.scryfallId) state.scryfallCache[pulledCard.scryfallId] = sc;
+    else if(sc.id) state.scryfallCache[sc.id] = sc;
+    els.modalBody.innerHTML = renderModalFromScryfall(sc, fxRate, pulledCard);
+    wireDownloadButton(sc);
+  }catch(err){
+    console.error(err);
+    els.modalBody.innerHTML = renderModalFromLocal(pulledCard, `Couldn't reach Scryfall for full details (${escapeHtml(err.message)}) — showing what we know locally.`);
+  }
+}
+
+function renderModalFromLocal(card, note){
+  return `
+    <div class="modal-body">
+      <div class="modal-img"></div>
+      <div class="modal-info">
+        <h2>${escapeHtml(card.name)}${card.foil ? `<span class="foil-tag">(${escapeHtml(resolveFoilKind(card) || 'Foil')})</span>` : ''}${card.number ? `<span class="cardnum">— #${escapeHtml(card.number)}</span>` : ''}${card.__stackQty > 1 ? `<span class="modal-qty">×${card.__stackQty}</span>` : ''}</h2>
+        <div class="modal-type" style="${(() => { const c = typeColorForLine(card.typeLine || card.typeShort); return c ? `color:${c}; font-weight:700;` : ''; })()}">${escapeHtml(card.typeLine || card.typeShort)}</div>
+        <p class="modal-loading" style="padding:0; text-align:left;">${note}</p>
+      </div>
+    </div>
+  `;
+}
+
+function sanitizeFilename(name){
+  return String(name || 'card').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'card';
+}
+
+async function downloadCardImage(url, filename){
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
+  }catch(err){
+    console.warn('Direct download failed, opening image in a new tab instead', err);
+    window.open(url, '_blank');
+  }
+}
+
+function wireDownloadButton(sc){
+  const btn = document.getElementById('modalDownloadBtn');
+  if(!btn) return;
+  const face = (sc.card_faces && sc.card_faces.length) ? sc.card_faces[0] : null;
+  const pngUrl = (sc.image_uris && sc.image_uris.png) || (face && face.image_uris && face.image_uris.png);
+  if(!pngUrl){
+    btn.disabled = true;
+    btn.title = 'No PNG image available for this card';
+    return;
+  }
+  btn.addEventListener('click', () => downloadCardImage(pngUrl, sanitizeFilename(sc.name) + '.png'));
+}
+
+function typeColorForLine(typeLine){
+  const t = typeLine || '';
+  if(/Legendary/.test(t) && /Creature/.test(t)) return '#ffab4d'; // orange
+  if(/Planeswalker/.test(t)) return '#ff7ad1';
+  if(/Battle/.test(t)) return '#ff5d5d';
+  if(/Creature/.test(t)) return '#7ed88f';
+  if(/Enchantment/.test(t)) return '#c58aff';
+  if(/Artifact/.test(t)) return '#b8c4cc';
+  if(/Instant/.test(t)) return '#6fb8ff';
+  if(/Sorcery/.test(t)) return '#ff8f5e';
+  if(/Land/.test(t)) return '#c9a06a';
+  return null;
+}
+
+const FOIL_TREATMENT_LABELS = {
+  surgefoil: 'Surge Foil',
+  galaxyfoil: 'Galaxy Foil',
+  confettifoil: 'Confetti Foil',
+  texturedfoil: 'Textured Foil',
+  textured: 'Textured Foil',
+  oilslick: 'Oil Slick Foil',
+  neonink: 'Neon Ink Foil',
+  haloeffect: 'Halo Foil',
+  halofoil: 'Halo Foil',
+  stepandcompleat: 'Step-and-Compleat Foil',
+  rainbowfoil: 'Rainbow Foil',
+  gilded: 'Gilded Foil',
+  silverfoil: 'Silver Foil',
+  doublerainbow: 'Double Rainbow Foil',
+  invisibleink: 'Invisible Ink Foil',
+  etched: 'Etched Foil'
+};
+
+// Looks for a specific named foil treatment (Surge Foil, Etched Foil, Galaxy Foil, etc.)
+// across Scryfall's frame_effects/promo_types/finishes; falls back to null if the card
+// is only ever plain "Foil" or has no special treatment on file.
+function foilFinishLabel(sc){
+  if(!sc) return null;
+  const tags = [...(sc.frame_effects || []), ...(sc.promo_types || [])];
+  for(const t of tags){
+    const key = String(t).toLowerCase().replace(/[^a-z]/g, '');
+    if(FOIL_TREATMENT_LABELS[key]) return FOIL_TREATMENT_LABELS[key];
+  }
+  if(sc.finishes && sc.finishes.includes('etched') && !sc.finishes.includes('foil')) return 'Etched Foil';
+  return null;
+}
+
+function frameLabel(sc){
+  const effects = sc.frame_effects || [];
+  const labels = [];
+  if(effects.includes('showcase')) labels.push('Showcase');
+  if(effects.includes('extendedart')) labels.push('Extended Art');
+  if(effects.includes('etched')) labels.push('Etched Foil');
+  if(effects.includes('shatteredglass')) labels.push('Shattered Glass');
+  if(effects.includes('inverted')) labels.push('Inverted');
+  if(sc.border_color === 'borderless') labels.push('Borderless');
+  if(sc.full_art) labels.push('Full Art');
+  if(sc.promo_types && sc.promo_types.includes('poster')) labels.push('Poster');
+  if(sc.textless) labels.push('Textless');
+  if(labels.length === 0) labels.push('Normal');
+  return [...new Set(labels)].join(' · ');
+}
+
+function legalityPill(format, status){
+  const cls = status === 'legal' ? 'legal' : (status === 'banned' || status === 'restricted' ? 'banned' : 'not');
+  const label = status === 'legal' ? 'LEGAL' : (status === 'not_legal' ? 'NOT LEGAL' : status.toUpperCase());
+  const niceFormat = format.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+  return `<div class="legal-pill"><span class="tag ${cls}">${label}</span><span>${escapeHtml(niceFormat)}</span></div>`;
+}
+
+function renderModalFromScryfall(sc, fxRate, pulledCard){
+  const face = (sc.card_faces && sc.card_faces.length) ? sc.card_faces[0] : null;
+  const img = (sc.image_uris && sc.image_uris.normal) || (face && face.image_uris && face.image_uris.normal) || '';
+  const typeLine = sc.type_line || (face && face.type_line) || '';
+  const oracleText = sc.oracle_text || (face && face.oracle_text) || '';
+  const flavorText = sc.flavor_text || (face && face.flavor_text) || '';
+  const power = sc.power || (face && face.power);
+  const toughness = sc.toughness || (face && face.toughness);
+  const loyalty = sc.loyalty || (face && face.loyalty);
+  const artist = sc.artist || (face && face.artist) || '';
+  const setLine = `${(sc.set || '').toUpperCase()} #${sc.collector_number || ''} · ${escapeHtml((sc.rarity||'').replace(/^./, ch=>ch.toUpperCase()))} · ${(sc.lang||'en').toUpperCase()}`;
+  const finishes = (sc.finishes || []).map(f => f === 'nonfoil' ? 'Nonfoil' : (f === 'foil' ? 'Foil' : f)).join('/');
+  // Prefer Scryfall's own frame data for the specific finish name (Surge Foil, Etched Foil,
+  // etc.) since it's the freshest source; fall back to whatever we tagged at pull time.
+  const displayFoilKind = (pulledCard && pulledCard.foil) ? (foilFinishLabel(sc) || pulledCard.foilKind || 'Foil') : null;
+
+  const legalities = Object.entries(sc.legalities || {})
+    .map(([format, status]) => legalityPill(format, status))
+    .join('');
+
+  const parts = (sc.all_parts || [])
+    .filter(p => p.id !== sc.id)
+    .map(p => `<li>${escapeHtml(p.name)} <span style="color:var(--parchment-dim); font-size:11.5px;">— ${escapeHtml(p.type_line || '')}</span></li>`)
+    .join('');
+
+  const prices = sc.prices || {};
+  const tcgUrl = sc.purchase_uris && sc.purchase_uris.tcgplayer;
+  const foilLabel = displayFoilKind || 'Foil'; // e.g. "Surge Foil", "Etched Foil" instead of generic "Foil"
+  const priceLink = (label, amount, symbol) => {
+    const text = `${label}: <span class="price">${symbol}${amount}</span>`;
+    return tcgUrl
+      ? `<a href="${escapeHtml(tcgUrl)}" target="_blank" rel="noopener" class="price-link">${text}</a>`
+      : `<span>${text}</span>`;
+  };
+  const priceParts = [];
+  let hasAud = false;
+  if(prices.usd) priceParts.push(priceLink('USD', escapeHtml(prices.usd), '$'));
+  if(prices.usd_foil) priceParts.push(priceLink(`USD ${foilLabel}`, escapeHtml(prices.usd_foil), '$'));
+  if(fxRate && prices.usd){
+    const aud = (parseFloat(prices.usd) * fxRate).toFixed(2);
+    priceParts.push(priceLink('AUD', aud, '$'));
+    hasAud = true;
+  }
+  if(fxRate && prices.usd_foil){
+    const audFoil = (parseFloat(prices.usd_foil) * fxRate).toFixed(2);
+    priceParts.push(priceLink(`AUD ${foilLabel}`, audFoil, '$'));
+    hasAud = true;
+  }
+  const priceRow = priceParts.join('');
+  const priceNote = hasAud ? `<p class="settings-note" style="margin:8px 0 0; font-style:italic; font-size:11px;">Some currencies aren't natively priced by Scryfall, so those figures are estimated from a live exchange rate rather than official listings.</p>` : '';
+
+  return `
+    <div class="modal-body">
+      <div class="modal-img">${img ? `<img src="${img}" alt="${escapeHtml(sc.name)}">` : ''}${sc.scryfall_uri ? `<a href="${escapeHtml(sc.scryfall_uri)}" target="_blank" rel="noopener" class="scryfall-link-btn img-action-btn">View on Scryfall ↗</a>` : ''}${img ? `<button type="button" id="modalDownloadBtn" class="scryfall-link-btn img-action-btn">Download PNG ⬇</button>` : ''}</div>
+      <div class="modal-info">
+        <h2>${escapeHtml(sc.name)}${displayFoilKind ? `<span class="foil-tag">(${escapeHtml(displayFoilKind)})</span>` : ''}${sc.collector_number ? `<span class="cardnum">— #${escapeHtml(sc.collector_number)}</span>` : ''}${pulledCard && pulledCard.__stackQty > 1 ? `<span class="modal-qty">×${pulledCard.__stackQty}</span>` : ''}</h2>
+        <div class="modal-frame-label">${escapeHtml(frameLabel(sc))}</div>
+        <div class="modal-type" style="${(() => { const c = typeColorForLine(typeLine); return c ? `color:${c}; font-weight:700;` : ''; })()}">${escapeHtml(typeLine)}</div>
+        ${oracleText ? `<div class="modal-oracle">${manaSymbolsToHtml(oracleText)}</div>` : ''}
+        ${flavorText ? `<div class="modal-flavor">${escapeHtml(flavorText)}</div>` : ''}
+        ${power ? `<div class="modal-pt">${escapeHtml(power)}/${escapeHtml(toughness)}</div>` : (loyalty ? `<div class="modal-pt">Loyalty: ${escapeHtml(loyalty)}</div>` : '')}
+        <div class="modal-artist">Illustrated by ${escapeHtml(artist)}<br>${setLine}${finishes ? ' · ' + escapeHtml(finishes) : ''}</div>
+        ${parts ? `<p class="modal-section-title">Faces, Tokens &amp; Other Parts</p><ul class="modal-parts">${parts}</ul>` : ''}
+        ${priceRow ? `<p class="modal-section-title">Prices</p><div class="price-row">${priceRow}</div>${priceNote}<br>` : ''}
+        ${state.settings.showLegality ? `<p class="modal-section-title">Format Legality</p><div class="legal-grid">${legalities}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+updateEmptyStates();
+updatePackCostNote();
+showIdlePack();
+init();
+</script>
+</body>
+</html>
